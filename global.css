@@ -6,35 +6,133 @@
 @import 'heroui-native/styles';
 
 /*
- * HeroUI Native + Uniwind tokens
- *
- * HeroUI component variants compile to semantic utilities such as bg-accent,
- * text-accent-foreground, bg-default, and text-foreground. The imported
- * heroui-native/styles package defines the default semantic theme and maps it
- * to --color-* Tailwind utilities.
- *
- * When changing brand colors, override semantic tokens inside Uniwind theme
- * variants. Do not put --accent only in a plain :root block: web may look
- * correct through CSS cascade order while Expo Go/native keeps HeroUI's
- * default blue from the active light/dark theme table.
- *
- * Example:
- *
- * @layer theme {
- *   :root {
- *     @variant light {
- *       --accent: oklch(0.63 0.18 148);
- *       --accent-foreground: oklch(0.99 0 0);
- *       --focus: var(--accent);
- *     }
- *
- *     @variant dark {
- *       --accent: oklch(0.63 0.18 148);
- *       --accent-foreground: oklch(0.99 0 0);
- *       --focus: var(--accent);
- *     }
- *   }
- * }
+ * RehaFlow — медична тема.
+ * Застосунок працює у темному режимі (медичний планшет/телефон у палаті),
+ * тому семантичні токени HeroUI перевизначені в обох варіантах,
+ * а активна тема фіксується через Uniwind.setTheme('dark') у app/_layout.tsx.
  */
+@layer theme {
+  :root {
+    @variant dark {
+      --background: oklch(0.19 0.012 250);
+      --foreground: oklch(0.97 0.004 250);
+
+      --surface: oklch(0.25 0.012 250);
+      --surface-foreground: oklch(0.96 0.004 250);
+      --surface-secondary: oklch(0.29 0.012 250);
+      --surface-secondary-foreground: oklch(0.96 0.004 250);
+      --surface-tertiary: oklch(0.33 0.012 250);
+      --surface-tertiary-foreground: oklch(0.96 0.004 250);
+
+      --overlay: oklch(0.24 0.012 250);
+      --overlay-foreground: oklch(0.96 0.004 250);
+      --backdrop: oklch(0% 0 0 / 55%);
+
+      --muted: oklch(0.7 0.014 250);
+
+      --default: oklch(0.3 0.012 250);
+      --default-foreground: oklch(0.95 0.004 250);
+
+      --accent: oklch(0.62 0.16 252);
+      --accent-foreground: oklch(0.99 0 0);
+
+      --field-background: oklch(0.29 0.012 250);
+      --field-foreground: var(--foreground);
+      --field-placeholder: oklch(0.66 0.014 250);
+      --field-border: oklch(0.4 0.014 250);
+
+      --success: oklch(0.68 0.16 148);
+      --success-foreground: oklch(0.16 0.03 148);
+
+      --warning: oklch(0.82 0.15 85);
+      --warning-foreground: oklch(0.2 0.04 85);
+
+      --danger: oklch(0.62 0.21 25);
+      --danger-foreground: oklch(0.99 0 0);
+
+      --segment: oklch(0.25 0.012 250);
+      --segment-foreground: oklch(0.96 0.004 250);
+
+      --border: oklch(0.37 0.014 250);
+      --separator: oklch(0.34 0.014 250);
+      --focus: var(--accent);
+      --link: oklch(0.72 0.15 252);
+
+      --surface-shadow: 0 0 0 0 transparent inset;
+      --overlay-shadow: 0 0 1px 0 rgba(255, 255, 255, 0.22) inset;
+      --field-shadow: 0 0 0 0 transparent inset;
+    }
+
+    @variant light {
+      --background: oklch(0.97 0.004 250);
+      --foreground: oklch(0.24 0.02 250);
+
+      --surface: oklch(1 0 0);
+      --surface-foreground: oklch(0.24 0.02 250);
+      --surface-secondary: oklch(0.96 0.006 250);
+      --surface-secondary-foreground: oklch(0.24 0.02 250);
+      --surface-tertiary: oklch(0.93 0.008 250);
+      --surface-tertiary-foreground: oklch(0.24 0.02 250);
+
+      --overlay: oklch(1 0 0);
+      --overlay-foreground: oklch(0.24 0.02 250);
+      --backdrop: oklch(0% 0 0 / 30%);
+
+      --muted: oklch(0.52 0.02 250);
+
+      --default: oklch(0.94 0.006 250);
+      --default-foreground: oklch(0.3 0.02 250);
+
+      --accent: oklch(0.55 0.16 252);
+      --accent-foreground: oklch(0.99 0 0);
+
+      --field-background: oklch(1 0 0);
+      --field-foreground: oklch(0.24 0.02 250);
+      --field-placeholder: oklch(0.6 0.02 250);
+      --field-border: oklch(0.88 0.008 250);
+
+      --success: oklch(0.6 0.15 148);
+      --success-foreground: oklch(0.99 0 0);
+
+      --warning: oklch(0.75 0.15 78);
+      --warning-foreground: oklch(0.24 0.04 78);
+
+      --danger: oklch(0.56 0.2 25);
+      --danger-foreground: oklch(0.99 0 0);
+
+      --segment: oklch(1 0 0);
+      --segment-foreground: oklch(0.24 0.02 250);
+
+      --border: oklch(0.89 0.008 250);
+      --separator: oklch(0.91 0.008 250);
+      --focus: var(--accent);
+      --link: oklch(0.5 0.16 252);
+    }
+  }
+}
+
+/*
+ * Утиліти станів RehaFlow (bg-*, text-*, border-*).
+ * header — синя верхня панель, urgent — термінові завдання,
+ * online/offline — індикатор з'єднання.
+ */
+@theme {
+  --color-header: oklch(0.48 0.15 258);
+  --color-header-foreground: oklch(0.99 0 0);
+  --color-header-strong: oklch(0.42 0.14 258);
+
+  --color-urgent: oklch(0.68 0.17 52);
+  --color-urgent-foreground: oklch(0.16 0.03 52);
+  --color-urgent-soft: oklch(0.34 0.07 52);
+
+  --color-online: oklch(0.72 0.17 148);
+  --color-offline: oklch(0.62 0.21 25);
+
+  --color-state-created: oklch(0.82 0.15 85);
+  --color-state-claimed: oklch(0.66 0.15 250);
+  --color-state-progress: oklch(0.7 0.16 52);
+  --color-state-done: oklch(0.68 0.16 148);
+  --color-state-cancelled: oklch(0.55 0.01 250);
+}
 
 @source './node_modules/heroui-native/lib';

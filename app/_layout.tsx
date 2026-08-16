@@ -10,10 +10,12 @@ import {
   useFonts,
 } from '@expo-google-fonts/inter';
 import Constants, { ExecutionEnvironment } from 'expo-constants';
-import { Platform } from 'react-native';
-import { useEffect } from 'react';
+import { ActivityIndicator, Platform, View } from 'react-native';
+import { type ReactNode, useEffect } from 'react';
 import * as DevClient from 'expo-dev-client';
 import { HeroUINativeProvider } from 'heroui-native';
+import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
+import { StatusBar } from 'expo-status-bar';
 import { Uniwind } from 'uniwind';
 import {
   ErrorBoundary as ExpoErrorBoundary,
@@ -22,15 +24,15 @@ import {
   Stack,
 } from 'expo-router';
 
+import { CACHE_MAX_AGE_MS } from '@/lib/api/config';
 import { initPostHog } from '@/lib/posthog';
+import { navColors } from '@/lib/theme';
+import { queryClient, queryPersister } from '@/lib/query/client';
 import { registerServiceWorker } from '@/lib/registerServiceWorker';
 import { reportErrorToParent } from '@/lib/reportPreviewError';
-import { InstallPrompt } from '@/components/InstallPrompt';
+import { useAppSync } from '@/lib/hooks/useAppSync';
+import { useAuthStore } from '@/lib/store/authStore';
 
-/**
- * Custom ErrorBoundary that reports React render errors to the parent window (Bilt preview iframe)
- * and then renders the default Expo error UI.
- */
 function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
   useEffect(() => {
     if (Platform.OS === 'web' && error) {
@@ -43,10 +45,22 @@ function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 
 export { ErrorBoundary };
 
-// Starter is light-only by default. Remove this when implementing requested dark mode.
-Uniwind.setTheme('light');
+// Медичний темний інтерфейс — тема фіксована.
+Uniwind.setTheme('dark');
 
 void SplashScreen.preventAutoHideAsync();
+
+/** Відновлення сесії, стан мережі, черга офлайн-дій, push. */
+function AppBootstrap({ children }: { children: ReactNode }) {
+  const hydrate = useAuthStore((state) => state.hydrate);
+  useAppSync();
+
+  useEffect(() => {
+    void hydrate();
+  }, [hydrate]);
+
+  return <>{children}</>;
+}
 
 export default function RootLayout() {
   const [loaded, error] = useFonts({
@@ -56,7 +70,6 @@ export default function RootLayout() {
     Inter_700Bold,
   });
 
-  // Report uncaught JS errors and unhandled promise rejections to parent (Bilt preview iframe)
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
 
@@ -80,15 +93,11 @@ export default function RootLayout() {
     };
   }, []);
 
-  // Inject Google Fonts link tag for web to ensure fonts load through proxy
-  // Also register font family names as fallback if expo-font fails
   useEffect(() => {
     if (Platform.OS === 'web') {
-      // Check if link already exists
       const existingLink = document.querySelector(
         'link[href*="fonts.googleapis.com/css2?family=Inter"]',
       );
-
       if (!existingLink) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
@@ -97,12 +106,6 @@ export default function RootLayout() {
         link.crossOrigin = 'anonymous';
         document.head.appendChild(link);
       }
-
-      // Note: The @import in global.css and the link tag above ensure Inter font loads
-      // expo-font will register the font family names (Inter_400Regular, etc.)
-      // If expo-font fails due to proxy issues, the fonts should still be available
-      // via the direct Google Fonts CDN link, though the specific font family names
-      // might not be registered. The app should still render with Inter font.
     }
   }, []);
 
@@ -135,16 +138,40 @@ export default function RootLayout() {
   }, [loaded, error]);
 
   if (!loaded && !error) {
-    return null;
+    return (
+      <View
+        style={{
+          flex: 1,
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: navColors.background,
+        }}
+      >
+        <ActivityIndicator color={navColors.accent} />
+      </View>
+    );
   }
 
   return (
-    <GestureHandlerRootView style={{ flex: 1 }}>
+    <GestureHandlerRootView style={{ flex: 1, backgroundColor: navColors.background }}>
       <HeroUINativeProvider>
-        <Stack>
-          <Stack.Screen name="(tabs)" options={{ title: 'Habits', headerShown: false }} />
-        </Stack>
-        <InstallPrompt />
+        <PersistQueryClientProvider
+          client={queryClient}
+          persistOptions={{ persister: queryPersister, maxAge: CACHE_MAX_AGE_MS }}
+        >
+          <AppBootstrap>
+            <StatusBar style="light" backgroundColor={navColors.header} />
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                contentStyle: { backgroundColor: navColors.background },
+              }}
+            >
+              <Stack.Screen name="(app)" />
+              <Stack.Screen name="(auth)" />
+            </Stack>
+          </AppBootstrap>
+        </PersistQueryClientProvider>
       </HeroUINativeProvider>
     </GestureHandlerRootView>
   );

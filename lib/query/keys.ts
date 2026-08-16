@@ -1,0 +1,15 @@
+export const queryKeys = {
+  me: ['me'] as const,
+  patients: ['patients', 'active'] as const,
+  patient: (id: string) => ['patient', id] as const,
+  patientPrescriptions: (id: string) => ['patient', id, 'prescriptions'] as const,
+  patientTasks: (id: string) => ['patient', id, 'tasks'] as const,
+  patientHistory: (id: string) => ['patient', id, 'history'] as const,
+  patientDocuments: (id: string) => ['patient', id, 'documents'] as const,
+  tasks: ['tasks'] as const,
+  task: (id: string) => ['task', id] as const,
+  prescriptions: ['prescriptions'] as const,
+  history: ['history'] as const,
+  devices: ['devices'] as const,
+  shift: ['shift', 'current'] as const,
+};

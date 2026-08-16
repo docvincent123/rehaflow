@@ -15,7 +15,7 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     newArchEnabled: true,
     version: process.env.BILT_APP_VERSION ?? '1.0.0',
     orientation: 'portrait',
-    userInterfaceStyle: 'automatic',
+    userInterfaceStyle: 'dark',
     scheme: 'rehaflow',
     runtimeVersion: {
       policy: 'appVersion',
@@ -30,6 +30,10 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     },
     android: {
       package: process.env.BILT_ANDROID_PACKAGE ?? 'com.yourcompany.yourapp',
+      permissions: ['INTERNET', 'ACCESS_NETWORK_STATE', 'POST_NOTIFICATIONS', 'VIBRATE'],
+      adaptiveIcon: {
+        backgroundColor: '#0F1620',
+      },
     },
     web: {
       bundler: 'metro',
@@ -41,7 +45,18 @@ export default ({ config }: ConfigContext): ExpoConfig => {
     extra: {
       appStoreAppId: process.env.BILT_APP_STORE_APP_ID,
     },
-    plugins: ['expo-router', 'expo-font', ...nativePlugins],
+    plugins: [
+      'expo-router',
+      'expo-font',
+      'expo-secure-store',
+      [
+        'expo-notifications',
+        {
+          color: '#1E88E5',
+        },
+      ],
+      ...nativePlugins,
+    ],
     experiments: {
       typedRoutes: true,
       reactCompiler: true,

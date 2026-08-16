@@ -62,6 +62,7 @@
     "context",
     ".expo",
     "node_modules",
+    "backend",
     "android/app/build",
     "uniwind-types.d.ts"
   ],
