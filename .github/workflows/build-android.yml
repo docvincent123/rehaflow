@@ -32,6 +32,12 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
+      - name: Initialize/link EAS project
+        run: eas init --force --non-interactive
+
+      - name: Verify EAS configuration
+        run: eas config --platform android --profile preview --non-interactive
+
       - name: Build Android APK
         run: eas build --platform android --profile preview --non-interactive
 
@@ -46,7 +52,7 @@ jobs:
           if (!build?.artifacts?.buildUrl) throw new Error('APK build URL not found');
           fs.writeFileSync('apk-url.txt', build.artifacts.buildUrl);
           NODE
-          curl -L "$(cat apk-url.txt)" -o artifacts/RehaFlow.apk
+          curl -fL "$(cat apk-url.txt)" -o artifacts/RehaFlow.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
