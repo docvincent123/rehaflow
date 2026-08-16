@@ -1,12 +1,6 @@
 /**
  * ЄДИНЕ місце, де описані маршрути API вебсистеми RehaFlow.
- *
- * Перевірено на живому сервері:
- *   GET /api/baas            -> { name: 'RehaFlow API', mobileReady: true }
- *   GET /api/baas/auth/me    -> 401 { error: 'Не авторизовано' }  (розділ auth існує)
- *
- * Якщо у вебсистемі назви маршрутів інші — правити ТІЛЬКИ цей файл,
- * решта застосунку залишається без змін.
+ * Mobile використовує тільки існуючі маршрути; ADMIN залишається web-only.
  */
 export const endpoints = {
   root: '/',
@@ -16,7 +10,6 @@ export const endpoints = {
     refresh: '/auth/refresh',
     me: '/auth/me',
     logout: '/auth/logout',
-    logoutAll: '/auth/logout-all',
     forgotPassword: '/auth/forgot-password',
   },
 
