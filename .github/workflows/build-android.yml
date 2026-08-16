@@ -32,27 +32,30 @@ jobs:
           eas-version: latest
           token: ${{ secrets.EXPO_TOKEN }}
 
-      - name: Initialize/link EAS project
-        run: eas init --force --non-interactive
+      # Dynamic app.config.ts cannot be modified automatically by EAS.
+      # Create/link the project in the Expo account and expose its ID to app.config.ts.
+      - name: Create or link EAS project
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas init --account xavyeryt --json --non-interactive > eas-init.json
+          echo "EAS init result:"
+          cat eas-init.json
+          PROJECT_ID=$(node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('eas-init.json','utf8')); const id=x.projectId ?? x.project?.id ?? x.id; if(!id) { console.error('EAS project ID was not returned by eas init'); process.exit(1); } process.stdout.write(id)")
+          echo "EAS_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
+          echo "Linked EAS project: $PROJECT_ID"
 
       - name: Verify EAS configuration
         run: eas config --platform android --profile preview --non-interactive
 
       - name: Build Android APK
-        run: eas build --platform android --profile preview --non-interactive
+        run: eas build --platform android --profile preview --non-interactive --wait
 
       - name: Download APK
         run: |
+          set -euo pipefail
           mkdir -p artifacts
-          eas build:list --platform android --status finished --limit 1 --json > build.json
-          node - <<'NODE'
-          const fs = require('fs');
-          const data = JSON.parse(fs.readFileSync('build.json', 'utf8'));
-          const build = Array.isArray(data) ? data[0] : data?.builds?.[0];
-          if (!build?.artifacts?.buildUrl) throw new Error('APK build URL not found');
-          fs.writeFileSync('apk-url.txt', build.artifacts.buildUrl);
-          NODE
-          curl -fL "$(cat apk-url.txt)" -o artifacts/RehaFlow.apk
+          eas build --platform android --profile preview --non-interactive --output artifacts/RehaFlow.apk
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
