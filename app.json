@@ -10,10 +10,13 @@
     "runtimeVersion": {
       "policy": "appVersion"
     },
-    "assetBundlePatterns": [
-      "**/*"
-    ],
+    "assetBundlePatterns": ["**/*"],
     "icon": "./assets/icon.png",
+    "splash": {
+      "image": "./assets/icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0D7F78"
+    },
     "android": {
       "package": "com.rehaflow.mobile",
       "permissions": [
