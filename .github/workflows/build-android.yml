@@ -6,6 +6,10 @@ on:
     branches:
       - main
 
+concurrency:
+  group: rehflow-android-apk
+  cancel-in-progress: true
+
 jobs:
   build-android:
     name: Build RehaFlow APK
@@ -60,7 +64,6 @@ jobs:
           set -euo pipefail
           npx expo config --type public --json > expo-config-linked.json
           node -e "const c=require('./expo-config-linked.json'); const id=c?.extra?.eas?.projectId; if(!id){throw new Error('extra.eas.projectId is missing after EAS init')} console.log('EAS projectId:', id)"
-          eas project:info --non-interactive
 
       - name: Build Android APK
         shell: bash
