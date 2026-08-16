@@ -51,11 +51,20 @@ jobs:
       - name: Build Android APK
         run: eas build --platform android --profile preview --non-interactive --wait
 
+      - name: Find completed build
+        shell: bash
+        run: |
+          set -euo pipefail
+          eas build:list --platform android --status finished --limit 1 --json > build.json
+          BUILD_ID=$(node -e "const fs=require('fs'); const x=JSON.parse(fs.readFileSync('build.json','utf8')); const b=Array.isArray(x)?x[0]:x?.builds?.[0]; const id=b?.id; if(!id) { console.error('Completed EAS build ID not found'); process.exit(1); } process.stdout.write(id)")
+          echo "BUILD_ID=$BUILD_ID" >> "$GITHUB_ENV"
+          echo "Completed build: $BUILD_ID"
+
       - name: Download APK
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          eas build --platform android --profile preview --non-interactive --output artifacts/RehaFlow.apk
+          eas build --build-id "$BUILD_ID" --output artifacts/RehaFlow.apk --non-interactive
 
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
