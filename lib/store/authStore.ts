@@ -1,7 +1,7 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { create } from 'zustand';
 
-import { fetchMe, login, logout, logoutAllDevices } from '@/lib/api/auth';
+import { fetchMe, login, logout } from '@/lib/api/auth';
 import { registerDevice } from '@/lib/api/devices';
 import { ApiError, isNetworkError } from '@/lib/api/errors';
 import { setUnauthorizedHandler } from '@/lib/api/http';
@@ -11,18 +11,15 @@ import { initDeviceMeta } from '@/lib/device';
 import { queryClient } from '@/lib/query/client';
 
 const USER_CACHE_KEY = 'rehaflow.user';
-
 type AuthStatus = 'loading' | 'authenticated' | 'unauthenticated';
 
 interface AuthState {
   status: AuthStatus;
   user: User | null;
-  /** true, коли профіль показано з кешу і сервер ще не підтвердив. */
   fromCache: boolean;
   hydrate: () => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  signOutEverywhere: () => Promise<void>;
   refreshProfile: () => Promise<void>;
   forceSignOut: () => void;
 }
@@ -40,9 +37,7 @@ async function writeCachedUser(user: User | null): Promise<void> {
   try {
     if (user) await AsyncStorage.setItem(USER_CACHE_KEY, JSON.stringify(user));
     else await AsyncStorage.removeItem(USER_CACHE_KEY);
-  } catch {
-    // Кеш профілю не критичний.
-  }
+  } catch {}
 }
 
 export const useAuthStore = create<AuthState>((set, get) => ({
@@ -57,17 +52,19 @@ export const useAuthStore = create<AuthState>((set, get) => ({
       set({ status: 'unauthenticated', user: null, fromCache: false });
       return;
     }
-
-    // Сесія відновлюється негайно з кешу — застосунок не блокується мережею.
     const cachedUser = await readCachedUser();
     set({ status: 'authenticated', user: cachedUser, fromCache: cachedUser !== null });
-
     await get().refreshProfile();
   },
 
   refreshProfile: async () => {
     try {
       const user = await fetchMe();
+      // ADMIN існує у вебсистемі, але не має доступу до mobile UI.
+      if (user.role === 'ADMIN') {
+        await get().forceSignOut();
+        return;
+      }
       set({ user, fromCache: false });
       await writeCachedUser(user);
       await registerDevice();
@@ -76,7 +73,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
         get().forceSignOut();
         return;
       }
-      // Офлайн або тимчасова помилка сервера — залишаємо кешований профіль.
       if (!isNetworkError(error)) return;
     }
   },
@@ -84,39 +80,24 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   signIn: async (email, password) => {
     await initDeviceMeta();
     const result = await login(email, password);
-    await tokenStorage.save({
-      accessToken: result.accessToken,
-      refreshToken: result.refreshToken,
-    });
+    await tokenStorage.save({ accessToken: result.accessToken, refreshToken: result.refreshToken });
 
     let user = result.user;
-    if (!user || !user.id) {
-      user = await fetchMe();
+    if (!user || !user.id) user = await fetchMe();
+    if (user.role === 'ADMIN') {
+      await tokenStorage.clear();
+      throw new ApiError('Адміністративний акаунт доступний лише у вебсистемі', 403, 'MOBILE_ADMIN_DISABLED');
     }
     await writeCachedUser(user);
     set({ status: 'authenticated', user, fromCache: false });
-
     try {
       await registerDevice();
-    } catch {
-      // Реєстрація пристрою повториться при наступному запуску/heartbeat.
-    }
+    } catch {}
   },
 
   signOut: async () => {
     try {
       await logout();
-    } catch {
-      await tokenStorage.clear();
-    }
-    await writeCachedUser(null);
-    queryClient.clear();
-    set({ status: 'unauthenticated', user: null, fromCache: false });
-  },
-
-  signOutEverywhere: async () => {
-    try {
-      await logoutAllDevices();
     } catch {
       await tokenStorage.clear();
     }
@@ -133,10 +114,6 @@ export const useAuthStore = create<AuthState>((set, get) => ({
   },
 }));
 
-/**
- * Коли сервер остаточно відкинув сесію — вихід. Втрата інтернету сюди не
- * потрапляє: NetworkError не доходить до цього обробника.
- */
 setUnauthorizedHandler(() => {
   useAuthStore.getState().forceSignOut();
 });
