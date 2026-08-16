@@ -1,0 +1,56 @@
+name: Build Android APK
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+jobs:
+  build-android:
+    name: Build RehaFlow APK
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Expo/EAS
+        uses: expo/expo-github-action@v8
+        with:
+          eas-version: latest
+          token: ${{ secrets.EXPO_TOKEN }}
+
+      - name: Build Android APK
+        run: eas build --platform android --profile preview --non-interactive
+
+      - name: Download APK
+        run: |
+          mkdir -p artifacts
+          eas build:list --platform android --status finished --limit 1 --json > build.json
+          node - <<'NODE'
+          const fs = require('fs');
+          const data = JSON.parse(fs.readFileSync('build.json', 'utf8'));
+          const build = Array.isArray(data) ? data[0] : data?.builds?.[0];
+          if (!build?.artifacts?.buildUrl) throw new Error('APK build URL not found');
+          fs.writeFileSync('apk-url.txt', build.artifacts.buildUrl);
+          NODE
+          curl -L "$(cat apk-url.txt)" -o artifacts/RehaFlow.apk
+
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: RehaFlow-Android-APK
+          path: artifacts/RehaFlow.apk
+          retention-days: 14
