@@ -78,14 +78,6 @@ export async function logout(): Promise<void> {
   }
 }
 
-export async function logoutAllDevices(): Promise<void> {
-  try {
-    await apiRequest(endpoints.auth.logoutAll, { method: 'POST', body: {} });
-  } finally {
-    await tokenStorage.clear();
-  }
-}
-
 export async function requestPasswordReset(email: string): Promise<void> {
   await apiRequest(endpoints.auth.forgotPassword, {
     method: 'POST',
