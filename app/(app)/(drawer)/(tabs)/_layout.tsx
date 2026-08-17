@@ -15,20 +15,26 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: navColors.background },
+        // Navigation is at the TOP so it does not compete with the Android
+        // system navigation/back area at the bottom of the phone.
+        tabBarPosition: 'top',
         tabBarStyle: {
           backgroundColor: navColors.surface,
-          borderTopColor: navColors.border,
-          borderTopWidth: 1,
+          borderBottomColor: navColors.border,
+          borderBottomWidth: 1,
+          borderTopWidth: 0,
           elevation: 0,
           shadowColor: 'transparent',
           shadowOpacity: 0,
           shadowRadius: 0,
-          height: 62,
-          paddingTop: 6,
+          height: 56,
+          paddingTop: 4,
+          paddingBottom: 4,
         },
         tabBarActiveTintColor: navColors.accent,
         tabBarInactiveTintColor: navColors.muted,
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600' },
+        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
+        tabBarItemStyle: { paddingHorizontal: 2 },
       }}
     >
       <Tabs.Screen name="index" options={{ href: null }} />
@@ -38,7 +44,7 @@ export default function TabsLayout() {
         options={{
           title: 'Завдання',
           href: showTasks ? undefined : null,
-          tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size ?? 24} />,
+          tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size ?? 20} />,
         }}
       />
 
@@ -46,7 +52,7 @@ export default function TabsLayout() {
         name="patients"
         options={{
           title: 'Пацієнти',
-          tabBarIcon: ({ color, size }) => <Users color={color} size={size ?? 24} />,
+          tabBarIcon: ({ color, size }) => <Users color={color} size={size ?? 20} />,
         }}
       />
 
@@ -55,7 +61,7 @@ export default function TabsLayout() {
         options={{
           title: 'Призначення',
           href: showPrescriptions ? undefined : null,
-          tabBarIcon: ({ color, size }) => <Stethoscope color={color} size={size ?? 24} />,
+          tabBarIcon: ({ color, size }) => <Stethoscope color={color} size={size ?? 20} />,
         }}
       />
 
@@ -63,7 +69,7 @@ export default function TabsLayout() {
         name="history"
         options={{
           title: 'Історія',
-          tabBarIcon: ({ color, size }) => <History color={color} size={size ?? 24} />,
+          tabBarIcon: ({ color, size }) => <History color={color} size={size ?? 20} />,
         }}
       />
 
@@ -71,7 +77,7 @@ export default function TabsLayout() {
         name="profile"
         options={{
           title: 'Профіль',
-          tabBarIcon: ({ color, size }) => <User color={color} size={size ?? 24} />,
+          tabBarIcon: ({ color, size }) => <User color={color} size={size ?? 20} />,
         }}
       />
     </Tabs>
