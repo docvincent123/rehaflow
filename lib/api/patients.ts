@@ -5,31 +5,50 @@ import { pickCollection, pickEntity } from './normalize';
 import type { HistoryEntry, MedicalTask, Patient, PatientDocument, Prescription } from './types';
 
 /**
- * Reads the active patient list from the RehaFlow web API.
- * The web backend has had several response wrappers, so accept all common
- * collection keys while keeping the server-side active filter.
+ * Reads patients from the SAME RehaFlow web API used by the web application.
+ * Some deployed backend versions do not implement status=active consistently,
+ * so the mobile client falls back to compatible query shapes and then applies
+ * the active/discharged decision locally.
  */
 export async function fetchPatients(options?: { includeDischarged?: boolean }): Promise<Patient[]> {
-  const payload = await apiRequest(endpoints.patients.list, {
-    query: options?.includeDischarged ? { limit: 500 } : { status: 'active', limit: 500 },
-  });
+  const queries = options?.includeDischarged
+    ? [{ limit: 500 }]
+    : [
+        { status: 'active', limit: 500 },
+        { active: true, limit: 500 },
+        { status: 'ACTIVE', limit: 500 },
+        { limit: 500 },
+      ];
 
-  const patients = pickCollection(payload, [
-    'patients',
-    'activePatients',
-    'active_patients',
-    'items',
-    'data',
-    'results',
-    'rows',
-  ])
-    .map(mapPatient)
-    .filter((item) => item.id);
+  let lastError: unknown = null;
 
-  if (options?.includeDischarged) return patients;
+  for (const query of queries) {
+    try {
+      const payload = await apiRequest(endpoints.patients.list, { query });
+      const patients = pickCollection(payload, [
+        'patients',
+        'activePatients',
+        'active_patients',
+        'items',
+        'data',
+        'results',
+        'rows',
+        'records',
+      ])
+        .map(mapPatient)
+        .filter((item) => item.id);
 
-  // Do not discard valid records merely because an older backend omitted status.
-  return patients.filter((patient) => patient.state !== 'DISCHARGED');
+      if (options?.includeDischarged) return patients;
+
+      const active = patients.filter((patient) => patient.state !== 'DISCHARGED');
+      if (active.length > 0) return active;
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  if (lastError) throw lastError;
+  return [];
 }
 
 export async function fetchPatient(id: string): Promise<Patient> {
