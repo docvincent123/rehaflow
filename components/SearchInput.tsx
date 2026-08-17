@@ -1,6 +1,5 @@
-import { TextInput, View } from 'react-native';
+import { Pressable, TextInput, View } from 'react-native';
 import { Search, X } from 'lucide-react-native';
-import { Pressable } from 'react-native';
 
 import { navColors } from '@/lib/theme';
 
@@ -10,16 +9,17 @@ interface SearchInputProps {
   placeholder?: string;
 }
 
+/** Compact search control so it does not take over the patient screen. */
 export function SearchInput({ value, onChangeText, placeholder }: SearchInputProps) {
   return (
-    <View className="border-field-border bg-field min-h-12 flex-row items-center gap-2 rounded-xl border px-3">
-      <Search color={navColors.muted} size={18} />
+    <View className="border-field-border bg-field h-10 flex-row items-center gap-2 rounded-lg border px-2.5">
+      <Search color={navColors.muted} size={16} />
       <TextInput
         value={value}
         onChangeText={onChangeText}
-        placeholder={placeholder ?? 'Пошук пацієнта'}
+        placeholder={placeholder ?? 'Пошук'}
         placeholderTextColorClassName="accent-muted"
-        className="text-foreground flex-1 py-3 text-base"
+        className="text-foreground flex-1 py-1 text-sm"
         autoCorrect={false}
         autoCapitalize="none"
         returnKeyType="search"
@@ -30,10 +30,10 @@ export function SearchInput({ value, onChangeText, placeholder }: SearchInputPro
           accessibilityRole="button"
           accessibilityLabel="Очистити пошук"
           onPress={() => onChangeText('')}
-          hitSlop={10}
+          hitSlop={8}
           className="p-1"
         >
-          <X color={navColors.muted} size={18} />
+          <X color={navColors.muted} size={16} />
         </Pressable>
       ) : null}
     </View>
