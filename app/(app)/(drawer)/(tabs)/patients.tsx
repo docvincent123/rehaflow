@@ -27,14 +27,14 @@ export default function PatientsScreen() {
 
   return (
     <View className="bg-background flex-1">
-      <AppHeader title="RehaFlow" subtitle="Активні пацієнти центру" />
+      <AppHeader title="Пацієнти" subtitle="Дані з RehaFlow WEB" />
 
       {query.isLoading && !hasData ? (
         <LoadingState label="Завантаження пацієнтів…" />
       ) : query.isError && !hasData ? (
         <ErrorState
           message={errorMessage(query.error)}
-          hint="Дані беруться з вебсистеми RehaFlow. Перевірте з’єднання."
+          hint="Не вдалося прочитати пацієнтів із вебсистеми. Перевірте з’єднання та адресу API."
           onRetry={() => void query.refetch()}
         />
       ) : (
@@ -64,13 +64,10 @@ export default function PatientsScreen() {
               />
 
               {query.isError ? (
-                <Banner
-                  tone="warning"
-                  message={`${errorMessage(query.error)}. Показані збережені дані`}
-                />
+                <Banner tone="warning" message={`${errorMessage(query.error)}. Показані кешовані дані.`} />
               ) : null}
               {!online && !query.isError ? (
-                <Banner tone="warning" message="Офлайн. Показані збережені дані" />
+                <Banner tone="warning" message="Офлайн. Показані останні збережені дані." />
               ) : null}
 
               <SectionTitle>
@@ -89,8 +86,8 @@ export default function PatientsScreen() {
               <EmptyState title="Нічого не знайдено" hint="Змініть запит пошуку" />
             ) : (
               <EmptyState
-                title="Активних пацієнтів немає"
-                hint="Пацієнти зʼявляться після реєстрації у вебсистемі RehaFlow"
+                title="Пацієнтів не знайдено"
+                hint="Список завантажується з вебсистеми RehaFlow. Потягніть вниз для повторного запиту."
               />
             )
           }
