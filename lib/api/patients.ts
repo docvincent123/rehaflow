@@ -5,19 +5,30 @@ import { pickCollection, pickEntity } from './normalize';
 import type { HistoryEntry, MedicalTask, Patient, PatientDocument, Prescription } from './types';
 
 /**
- * Активні пацієнти центру. Фільтр застосовується і на сервері (status=active),
- * і локально — щоб виписані пацієнти не потрапляли у список навіть якщо
- * сервер повернув усіх.
+ * Reads the active patient list from the RehaFlow web API.
+ * The web backend has had several response wrappers, so accept all common
+ * collection keys while keeping the server-side active filter.
  */
 export async function fetchPatients(options?: { includeDischarged?: boolean }): Promise<Patient[]> {
   const payload = await apiRequest(endpoints.patients.list, {
     query: options?.includeDischarged ? { limit: 500 } : { status: 'active', limit: 500 },
   });
 
-  const patients = pickCollection(payload, ['patients'])
+  const patients = pickCollection(payload, [
+    'patients',
+    'activePatients',
+    'active_patients',
+    'items',
+    'data',
+    'results',
+    'rows',
+  ])
     .map(mapPatient)
     .filter((item) => item.id);
+
   if (options?.includeDischarged) return patients;
+
+  // Do not discard valid records merely because an older backend omitted status.
   return patients.filter((patient) => patient.state !== 'DISCHARGED');
 }
 
