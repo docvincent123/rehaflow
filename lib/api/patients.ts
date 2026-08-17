@@ -1,14 +1,12 @@
 import { endpoints } from './endpoints';
 import { apiRequest } from './http';
 import { mapDocument, mapHistoryEntry, mapPatient, mapPrescription, mapTask } from './mappers';
-import { pickCollection, pickEntity } from './normalize';
+import { asRecord, pickCollection, pickEntity, readRecord } from './normalize';
 import type { HistoryEntry, MedicalTask, Patient, PatientDocument, Prescription } from './types';
 
 /**
  * Reads patients from the SAME RehaFlow web API used by the web application.
- * Some deployed backend versions do not implement status=active consistently,
- * so the mobile client falls back to compatible query shapes and then applies
- * the active/discharged decision locally.
+ * Compatible with all deployed response/filter variants and nested patient rows.
  */
 export async function fetchPatients(options?: { includeDischarged?: boolean }): Promise<Patient[]> {
   const queries = options?.includeDischarged
@@ -25,17 +23,17 @@ export async function fetchPatients(options?: { includeDischarged?: boolean }): 
   for (const query of queries) {
     try {
       const payload = await apiRequest(endpoints.patients.list, { query });
-      const patients = pickCollection(payload, [
-        'patients',
-        'activePatients',
-        'active_patients',
-        'items',
-        'data',
-        'results',
-        'rows',
-        'records',
-      ])
-        .map(mapPatient)
+      const rawPatients = pickCollection(payload, [
+        'patients', 'activePatients', 'active_patients', 'items', 'data', 'results', 'rows', 'records',
+      ]);
+
+      const patients = rawPatients
+        .map((item) => {
+          const record = asRecord(item);
+          // Some web responses wrap every row as { patient: {...} }.
+          const nested = readRecord(record, ['patient', 'person', 'data']);
+          return mapPatient(Object.keys(nested).length > 0 ? nested : record);
+        })
         .filter((item) => item.id);
 
       if (options?.includeDischarged) return patients;
@@ -81,22 +79,12 @@ export function filterPatients(patients: Patient[], query: string): Patient[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return patients;
   const terms = needle.split(/\s+/);
-
   return patients.filter((patient) => {
-    const haystack = [
-      patient.fullName,
-      patient.lastName,
-      patient.firstName,
-      patient.middleName,
+    const haystack = [patient.fullName, patient.lastName, patient.firstName, patient.middleName,
       patient.roomNumber ? `палата ${patient.roomNumber}` : undefined,
       patient.bedNumber ? `ліжко ${patient.bedNumber}` : undefined,
-      patient.id,
-      patient.diagnosis,
-    ]
-      .filter((part): part is string => Boolean(part))
-      .join(' ')
-      .toLowerCase();
-
+      patient.id, patient.diagnosis]
+      .filter((part): part is string => Boolean(part)).join(' ').toLowerCase();
     return terms.every((term) => haystack.includes(term));
   });
 }
