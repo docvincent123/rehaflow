@@ -11,6 +11,8 @@ export interface LoginResult {
   accessToken: string;
   refreshToken: string | null;
   user: User | null;
+  requiresTwoFactor?: boolean;
+  challengeToken?: string | null;
 }
 
 function extractTokens(payload: unknown): { accessToken?: string; refreshToken?: string } {
@@ -20,45 +22,59 @@ function extractTokens(payload: unknown): { accessToken?: string; refreshToken?:
     accessToken:
       readString(record, ['accessToken', 'token', 'jwt', 'idToken']) ??
       readString(nested, ['accessToken', 'token', 'jwt', 'idToken']),
-    refreshToken: readString(record, ['refreshToken']) ?? readString(nested, ['refreshToken']),
+    refreshToken:
+      readString(record, ['refreshToken', 'refresh_token']) ??
+      readString(nested, ['refreshToken', 'refresh_token']),
   };
 }
 
-export async function login(email: string, password: string): Promise<LoginResult> {
+export async function login(emailOrLogin: string, password: string): Promise<LoginResult> {
+  const identifier = emailOrLogin.trim();
   const device = getDeviceMeta();
+  if (!identifier || !password) throw new ApiError('Введіть логін та пароль', 400, 'MISSING_CREDENTIALS');
+
   const payload = await apiRequest(endpoints.auth.login, {
     method: 'POST',
     auth: false,
     body: {
-      email: email.trim().toLowerCase(),
+      email: identifier.toLowerCase(),
+      login: identifier,
+      username: identifier,
+      identifier,
       password,
       client: 'mobile',
       deviceId: device?.deviceId,
-      device: device
-        ? {
-            deviceId: device.deviceId,
-            model: device.model,
-            os: device.osVersion ? `${device.os} ${device.osVersion}` : device.os,
-            appVersion: device.appVersion,
-          }
-        : undefined,
+      device: device ? {
+        deviceId: device.deviceId,
+        name: device.model,
+        model: device.model,
+        os: device.osVersion ? `${device.os} ${device.osVersion}` : device.os,
+        platform: device.os,
+        appVersion: device.appVersion,
+      } : undefined,
     },
   });
 
-  const { accessToken, refreshToken } = extractTokens(payload);
-  if (!accessToken) {
-    throw new ApiError('Сервер не повернув токен доступу', 500, 'NO_ACCESS_TOKEN', payload);
+  const record = asRecord(payload);
+  const requiresTwoFactor = record.requiresTwoFactor === true;
+  const challengeToken = readString(record, ['challengeToken']);
+  if (requiresTwoFactor) {
+    return { accessToken: '', refreshToken: null, user: null, requiresTwoFactor: true, challengeToken: challengeToken ?? null };
   }
 
-  const record = asRecord(payload);
-  const userRecord = pickEntity(record.user ?? record.profile ?? record.account ?? payload, [
-    'user',
-    'profile',
-    'account',
-  ]);
-  const user = Object.keys(userRecord).length > 0 ? mapUser(userRecord) : null;
+  const { accessToken, refreshToken } = extractTokens(payload);
+  if (!accessToken) throw new ApiError('Сервер не повернув токен доступу', 500, 'NO_ACCESS_TOKEN', payload);
 
-  return { accessToken, refreshToken: refreshToken ?? null, user };
+  await tokenStorage.save({ accessToken, refreshToken: refreshToken ?? accessToken });
+
+  const userRecord = pickEntity(record.user ?? record.profile ?? record.account ?? payload, ['user', 'profile', 'account']);
+  let user = Object.keys(userRecord).length > 0 ? mapUser(userRecord) : null;
+  try {
+    user = await fetchMe();
+  } catch {
+    // Authentication already succeeded; /me may be temporarily unavailable.
+  }
+  return { accessToken, refreshToken: refreshToken ?? accessToken, user };
 }
 
 export async function fetchMe(): Promise<User> {
@@ -69,19 +85,12 @@ export async function fetchMe(): Promise<User> {
 export async function logout(): Promise<void> {
   const device = getDeviceMeta();
   try {
-    await apiRequest(endpoints.auth.logout, {
-      method: 'POST',
-      body: { deviceId: device?.deviceId },
-    });
+    await apiRequest(endpoints.auth.logout, { method: 'POST', body: { deviceId: device?.deviceId } });
   } finally {
     await tokenStorage.clear();
   }
 }
 
 export async function requestPasswordReset(email: string): Promise<void> {
-  await apiRequest(endpoints.auth.forgotPassword, {
-    method: 'POST',
-    auth: false,
-    body: { email: email.trim().toLowerCase() },
-  });
+  await apiRequest(endpoints.auth.forgotPassword, { method: 'POST', auth: false, body: { email: email.trim().toLowerCase() } });
 }
