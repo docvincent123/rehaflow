@@ -9,22 +9,44 @@ type DbQueryResponse = {
   meta?: { count?: number };
 };
 
-async function fetchPatientsFromWebDb(includeDischarged = false): Promise<Patient[]> {
-  const where = includeDischarged
-    ? {}
-    : {
-        status: {
-          in: ['active', 'ACTIVE', 'Active', 'лікується', 'in_treatment', 'current'],
-        },
-      };
+function normalizePatients(payload: unknown): Patient[] {
+  return pickCollection(payload, [
+    'patients',
+    'activePatients',
+    'active_patients',
+    'items',
+    'data',
+    'results',
+    'rows',
+    'records',
+  ])
+    .map((item) => {
+      const record = asRecord(item);
+      const nested = readRecord(record, ['patient', 'person', 'data']);
+      return mapPatient(Object.keys(nested).length > 0 ? nested : record);
+    })
+    .filter((item) => item.id);
+}
 
+function activeOnly(patients: Patient[]): Patient[] {
+  return patients.filter((patient) => patient.state !== 'DISCHARGED');
+}
+
+async function fetchPatientsFromCanonicalMobileFeed(includeDischarged = false): Promise<Patient[]> {
+  const payload = await apiRequest(endpoints.patients.bootstrap);
+  const patients = normalizePatients(payload);
+  return includeDischarged ? patients : activeOnly(patients);
+}
+
+async function fetchPatientsFromWebDb(includeDischarged = false): Promise<Patient[]> {
+  // Do not constrain the SQL query to a hard-coded status list. The web system
+  // may add localized/custom active states; resolve the final state in mapPatient.
   const payload = await apiRequest('/db/query', {
     method: 'POST',
     body: {
       model: 'Patient',
       action: 'findMany',
       args: {
-        where,
         orderBy: { admissionDate: 'desc' },
         take: 500,
         include: {
@@ -38,35 +60,41 @@ async function fetchPatientsFromWebDb(includeDischarged = false): Promise<Patien
 
   const response = asRecord(payload) as DbQueryResponse;
   const raw = Array.isArray(response.data) ? response.data : [];
-  return raw
+  const patients = raw
     .map((item) => {
       const record = asRecord(item);
       const nested = readRecord(record, ['patient', 'person', 'data']);
       return mapPatient(Object.keys(nested).length > 0 ? nested : record);
     })
-    .filter((item) => item.id)
-    .filter((item) => includeDischarged || item.state !== 'DISCHARGED');
+    .filter((item) => item.id);
+
+  return includeDischarged ? patients : activeOnly(patients);
 }
 
 /**
- * IMPORTANT:
- * The web application itself reads patients through /api/baas/db/query.
- * Mobile now reads through the same route first, so WEB and MOBILE cannot
- * silently diverge to different patient stores/endpoints.
- *
- * Existing mobile endpoints remain as fallbacks for backwards compatibility.
+ * WEB and MOBILE use the exact same Patient data source.
+ * Primary: /mobile/bootstrap (canonical mobile bridge).
+ * Fallback: /db/query and the legacy /patients endpoint.
  */
 export async function fetchPatients(options?: { includeDischarged?: boolean }): Promise<Patient[]> {
-  let dbError: unknown = null;
+  const includeDischarged = Boolean(options?.includeDischarged);
+  let lastError: unknown = null;
 
   try {
-    const patients = await fetchPatientsFromWebDb(Boolean(options?.includeDischarged));
-    if (patients.length > 0 || options?.includeDischarged) return patients;
+    const patients = await fetchPatientsFromCanonicalMobileFeed(includeDischarged);
+    if (patients.length > 0 || includeDischarged) return patients;
   } catch (error) {
-    dbError = error;
+    lastError = error;
   }
 
-  const queries = options?.includeDischarged
+  try {
+    const patients = await fetchPatientsFromWebDb(includeDischarged);
+    if (patients.length > 0 || includeDischarged) return patients;
+  } catch (error) {
+    lastError = error;
+  }
+
+  const queries = includeDischarged
     ? [{ limit: 500 }]
     : [
         { status: 'active', limit: 500 },
@@ -75,33 +103,12 @@ export async function fetchPatients(options?: { includeDischarged?: boolean }): 
         { limit: 500 },
       ];
 
-  let lastError: unknown = dbError;
-
   for (const query of queries) {
     try {
       const payload = await apiRequest(endpoints.patients.list, { query });
-      const rawPatients = pickCollection(payload, [
-        'patients',
-        'activePatients',
-        'active_patients',
-        'items',
-        'data',
-        'results',
-        'rows',
-        'records',
-      ]);
-
-      const patients = rawPatients
-        .map((item) => {
-          const record = asRecord(item);
-          const nested = readRecord(record, ['patient', 'person', 'data']);
-          return mapPatient(Object.keys(nested).length > 0 ? nested : record);
-        })
-        .filter((item) => item.id);
-
-      if (options?.includeDischarged) return patients;
-
-      const active = patients.filter((patient) => patient.state !== 'DISCHARGED');
+      const patients = normalizePatients(payload);
+      if (includeDischarged) return patients;
+      const active = activeOnly(patients);
       if (active.length > 0) return active;
     } catch (error) {
       lastError = error;
