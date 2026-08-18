@@ -13,6 +13,8 @@ export interface RequestOptions {
   query?: Record<string, QueryValue>;
   /** Додавати Authorization. За замовчуванням — так. */
   auth?: boolean;
+  /** Для читання WEB-таблиць без mobile-only маршрутизації. */
+  client?: 'mobile' | 'web';
 }
 
 let unauthorizedHandler: (() => void) | null = null;
@@ -68,9 +70,11 @@ async function rawFetch(path: string, options: RequestOptions): Promise<Response
 
   const headers: Record<string, string> = {
     Accept: 'application/json',
-    'X-Client': 'rehaflow-mobile',
   };
-  if (device) {
+  if (options.client !== 'web') {
+    headers['X-Client'] = 'rehaflow-mobile';
+  }
+  if (device && options.client !== 'web') {
     headers['X-Device-Id'] = device.deviceId;
     headers['X-App-Version'] = device.appVersion;
     headers['X-Device-Model'] = device.model;
@@ -107,7 +111,6 @@ async function performRefresh(): Promise<boolean> {
     const response = await rawFetch(endpoints.auth.refresh, {
       method: 'POST',
       auth: false,
-      // Дублюємо ключ у двох стилях для сумісності з наявним бекендом.
       body: { refreshToken, refresh_token: refreshToken, deviceId: getDeviceMeta()?.deviceId },
     });
     if (!response.ok) return false;
@@ -136,10 +139,7 @@ async function refreshSession(): Promise<boolean> {
   return refreshPromise;
 }
 
-/**
- * Виконує запит до API RehaFlow.
- * Повертає нерозібраний JSON — типізація відбувається в мапперах.
- */
+/** Виконує запит до API RehaFlow. */
 export async function apiRequest(path: string, options: RequestOptions = {}): Promise<unknown> {
   let response = await rawFetch(path, options);
 
