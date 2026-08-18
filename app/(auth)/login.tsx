@@ -9,6 +9,7 @@ import {
   Text,
   View,
 } from 'react-native';
+import { Eye, EyeOff, LockKeyhole, Mail } from 'lucide-react-native';
 import { Description, FieldError, Input, Label, TextField } from 'heroui-native';
 import { Link } from 'expo-router';
 import { useState } from 'react';
@@ -32,6 +33,7 @@ export default function LoginScreen() {
   const online = useIsOnline();
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   const { control, handleSubmit, formState } = useForm<LoginForm>({
     resolver: zodResolver(loginSchema),
@@ -60,18 +62,28 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : undefined}
     >
       <ScrollView
-        contentContainerClassName="grow justify-center px-6 py-safe-offset-10"
+        contentContainerClassName="grow justify-center px-5 py-safe-offset-10"
         keyboardShouldPersistTaps="handled"
       >
-        <View className="items-center gap-1 pb-8">
-          <View className="bg-header mb-3 h-14 w-14 items-center justify-center rounded-2xl">
-            <Text className="text-header-foreground text-xl font-bold">R</Text>
+        <View className="mb-5">
+          <View className="mb-6 flex-row items-center gap-3">
+            <View className="bg-header h-12 w-12 items-center justify-center rounded-2xl">
+              <Text className="text-header-foreground text-lg font-bold">R</Text>
+            </View>
+            <View className="flex-1">
+              <Text className="text-foreground text-2xl font-bold">RehaFlow</Text>
+              <Text className="text-muted text-xs">Мобільне робоче місце реабілітаційного центру</Text>
+            </View>
           </View>
-          <Text className="text-foreground text-3xl font-bold">RehaFlow</Text>
-          <Text className="text-muted text-sm">Доступ для лікарів та медичних сестер</Text>
+
+          <View className="flex-row flex-wrap gap-2">
+            <View className="bg-success-soft rounded-full px-3 py-1.5"><Text className="text-success text-[11px] font-semibold">Лікарі</Text></View>
+            <View className="bg-accent-soft rounded-full px-3 py-1.5"><Text className="text-accent text-[11px] font-semibold">Медсестри</Text></View>
+            <View className="bg-surface rounded-full border border-border px-3 py-1.5"><Text className="text-muted text-[11px] font-semibold">Робота онлайн</Text></View>
+          </View>
         </View>
 
-        <View className="border-border bg-surface gap-4 rounded-2xl border p-5">
+        <View className="border-border bg-surface gap-4 rounded-3xl border p-5 shadow-sm">
           {serverError ? <Banner tone="danger" message={serverError} /> : null}
           {online ? null : <Banner tone="warning" message="Немає з’єднання з сервером" />}
 
@@ -81,17 +93,23 @@ export default function LoginScreen() {
             render={({ field, fieldState }) => (
               <TextField isInvalid={Boolean(fieldState.error)}>
                 <Label>Email</Label>
-                <Input
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  onBlur={field.onBlur}
-                  placeholder="likar@rehaflow.ua"
-                  keyboardType="email-address"
-                  autoCapitalize="none"
-                  autoComplete="username"
-                  autoCorrect={false}
-                  textContentType="emailAddress"
-                />
+                <View className="relative">
+                  <View className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2">
+                    <Mail color={navColors.muted} size={18} />
+                  </View>
+                  <Input
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    placeholder="likar@rehaflow.ua"
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoComplete="username"
+                    autoCorrect={false}
+                    textContentType="emailAddress"
+                    className="pl-10"
+                  />
+                </View>
                 <FieldError>{fieldState.error?.message}</FieldError>
               </TextField>
             )}
@@ -103,19 +121,38 @@ export default function LoginScreen() {
             render={({ field, fieldState }) => (
               <TextField isInvalid={Boolean(fieldState.error)}>
                 <Label>Пароль</Label>
-                <Input
-                  value={field.value}
-                  onChangeText={field.onChange}
-                  onBlur={field.onBlur}
-                  placeholder="••••••••"
-                  secureTextEntry
-                  autoCapitalize="none"
-                  autoComplete="current-password"
-                  textContentType="password"
-                  returnKeyType="go"
-                  onSubmitEditing={() => void handleSubmit(onSubmit)()}
-                />
-                <Description>Пароль не зберігається на пристрої</Description>
+                <View className="relative">
+                  <View className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2">
+                    <LockKeyhole color={navColors.muted} size={18} />
+                  </View>
+                  <Input
+                    value={field.value}
+                    onChangeText={field.onChange}
+                    onBlur={field.onBlur}
+                    placeholder="Введіть пароль"
+                    secureTextEntry={!showPassword}
+                    autoCapitalize="none"
+                    autoComplete="current-password"
+                    textContentType="password"
+                    returnKeyType="go"
+                    onSubmitEditing={() => void handleSubmit(onSubmit)()}
+                    className="pr-12 pl-10"
+                  />
+                  <Pressable
+                    accessibilityRole="button"
+                    accessibilityLabel={showPassword ? 'Сховати пароль' : 'Показати пароль'}
+                    onPress={() => setShowPassword((value) => !value)}
+                    className="absolute right-2 top-1/2 h-10 w-10 -translate-y-1/2 items-center justify-center rounded-xl"
+                    style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
+                  >
+                    {showPassword ? (
+                      <EyeOff color={navColors.muted} size={19} />
+                    ) : (
+                      <Eye color={navColors.muted} size={19} />
+                    )}
+                  </Pressable>
+                </View>
+                <Description>Пароль можна показати кнопкою з оком. Він не зберігається на пристрої.</Description>
                 <FieldError>{fieldState.error?.message}</FieldError>
               </TextField>
             )}
@@ -125,11 +162,11 @@ export default function LoginScreen() {
             accessibilityRole="button"
             disabled={submitting || formState.isSubmitting}
             onPress={() => void handleSubmit(onSubmit)()}
-            className="bg-accent min-h-14 flex-row items-center justify-center gap-2 rounded-xl px-5 py-4"
+            className="bg-accent min-h-14 flex-row items-center justify-center gap-2 rounded-2xl px-5 py-4"
             style={({ pressed }) => ({ opacity: pressed || submitting ? 0.75 : 1 })}
           >
             {submitting ? <ActivityIndicator color={navColors.headerForeground} /> : null}
-            <Text className="text-accent-foreground text-base font-bold">Увійти</Text>
+            <Text className="text-accent-foreground text-base font-bold">Увійти в RehaFlow</Text>
           </Pressable>
 
           <Link href="/forgot-password" asChild>
@@ -143,9 +180,8 @@ export default function LoginScreen() {
           </Link>
         </View>
 
-        <Text className="text-muted pt-6 text-center text-[11px]">
-          Доступ надає адміністратор центру. Після декількох невдалих спроб акаунт тимчасово
-          блокується сервером.
+        <Text className="text-muted pt-5 text-center text-[11px] leading-4">
+          Доступ надає адміністратор центру. Після невдалих спроб входу акаунт може бути тимчасово заблокований сервером.
         </Text>
       </ScrollView>
     </KeyboardAvoidingView>
