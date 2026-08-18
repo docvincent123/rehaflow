@@ -4,11 +4,68 @@ import { mapDocument, mapHistoryEntry, mapPatient, mapPrescription, mapTask } fr
 import { asRecord, pickCollection, pickEntity, readRecord } from './normalize';
 import type { HistoryEntry, MedicalTask, Patient, PatientDocument, Prescription } from './types';
 
+type DbQueryResponse = {
+  data?: unknown;
+  meta?: { count?: number };
+};
+
+async function fetchPatientsFromWebDb(includeDischarged = false): Promise<Patient[]> {
+  const where = includeDischarged
+    ? {}
+    : {
+        status: {
+          in: ['active', 'ACTIVE', 'Active', 'лікується', 'in_treatment', 'current'],
+        },
+      };
+
+  const payload = await apiRequest('/db/query', {
+    method: 'POST',
+    body: {
+      model: 'Patient',
+      action: 'findMany',
+      args: {
+        where,
+        orderBy: { admissionDate: 'desc' },
+        take: 500,
+        include: {
+          room: true,
+          doctor: true,
+          bed: true,
+        },
+      },
+    },
+  });
+
+  const response = asRecord(payload) as DbQueryResponse;
+  const raw = Array.isArray(response.data) ? response.data : [];
+  return raw
+    .map((item) => {
+      const record = asRecord(item);
+      const nested = readRecord(record, ['patient', 'person', 'data']);
+      return mapPatient(Object.keys(nested).length > 0 ? nested : record);
+    })
+    .filter((item) => item.id)
+    .filter((item) => includeDischarged || item.state !== 'DISCHARGED');
+}
+
 /**
- * Reads patients from the SAME RehaFlow web API used by the web application.
- * Compatible with all deployed response/filter variants and nested patient rows.
+ * IMPORTANT:
+ * The web application itself reads patients through /api/baas/db/query.
+ * Mobile now reads through the same route first, so WEB and MOBILE cannot
+ * silently diverge to different patient stores/endpoints.
+ *
+ * Existing mobile endpoints remain as fallbacks for backwards compatibility.
  */
 export async function fetchPatients(options?: { includeDischarged?: boolean }): Promise<Patient[]> {
+  let dbError: unknown = null;
+
+  try {
+    const patients = await fetchPatientsFromWebDb(Boolean(options?.includeDischarged));
+    if (patients.length > 0 || options?.includeDischarged) return patients;
+  } catch (error) {
+    dbError = error;
+  }
+
   const queries = options?.includeDischarged
     ? [{ limit: 500 }]
     : [
@@ -18,19 +75,25 @@ export async function fetchPatients(options?: { includeDischarged?: boolean }): 
         { limit: 500 },
       ];
 
-  let lastError: unknown = null;
+  let lastError: unknown = dbError;
 
   for (const query of queries) {
     try {
       const payload = await apiRequest(endpoints.patients.list, { query });
       const rawPatients = pickCollection(payload, [
-        'patients', 'activePatients', 'active_patients', 'items', 'data', 'results', 'rows', 'records',
+        'patients',
+        'activePatients',
+        'active_patients',
+        'items',
+        'data',
+        'results',
+        'rows',
+        'records',
       ]);
 
       const patients = rawPatients
         .map((item) => {
           const record = asRecord(item);
-          // Some web responses wrap every row as { patient: {...} }.
           const nested = readRecord(record, ['patient', 'person', 'data']);
           return mapPatient(Object.keys(nested).length > 0 ? nested : record);
         })
@@ -79,12 +142,22 @@ export function filterPatients(patients: Patient[], query: string): Patient[] {
   const needle = query.trim().toLowerCase();
   if (!needle) return patients;
   const terms = needle.split(/\s+/);
+
   return patients.filter((patient) => {
-    const haystack = [patient.fullName, patient.lastName, patient.firstName, patient.middleName,
+    const haystack = [
+      patient.fullName,
+      patient.lastName,
+      patient.firstName,
+      patient.middleName,
       patient.roomNumber ? `палата ${patient.roomNumber}` : undefined,
       patient.bedNumber ? `ліжко ${patient.bedNumber}` : undefined,
-      patient.id, patient.diagnosis]
-      .filter((part): part is string => Boolean(part)).join(' ').toLowerCase();
+      patient.id,
+      patient.diagnosis,
+    ]
+      .filter((part): part is string => Boolean(part))
+      .join(' ')
+      .toLowerCase();
+
     return terms.every((term) => haystack.includes(term));
   });
 }
