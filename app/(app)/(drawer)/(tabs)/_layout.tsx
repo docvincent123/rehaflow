@@ -1,4 +1,4 @@
-import { ClipboardList, History, Stethoscope, User, Users } from 'lucide-react-native';
+import { ClipboardList, Grid2X2, History, Home, Stethoscope, User, Users } from 'lucide-react-native';
 import { Tabs } from 'expo-router';
 
 import { canCreatePrescription, canSeeTaskQueue } from '@/lib/permissions';
@@ -15,8 +15,6 @@ export default function TabsLayout() {
       screenOptions={{
         headerShown: false,
         sceneStyle: { backgroundColor: navColors.background },
-        // Navigation is at the TOP so it does not compete with the Android
-        // system navigation/back area at the bottom of the phone.
         tabBarPosition: 'top',
         tabBarStyle: {
           backgroundColor: navColors.surface,
@@ -27,22 +25,28 @@ export default function TabsLayout() {
           shadowColor: 'transparent',
           shadowOpacity: 0,
           shadowRadius: 0,
-          height: 56,
+          height: 58,
           paddingTop: 4,
           paddingBottom: 4,
         },
         tabBarActiveTintColor: navColors.accent,
         tabBarInactiveTintColor: navColors.muted,
-        tabBarLabelStyle: { fontSize: 10, fontWeight: '600' },
-        tabBarItemStyle: { paddingHorizontal: 2 },
+        tabBarLabelStyle: { fontSize: 9, fontWeight: '700' },
+        tabBarItemStyle: { paddingHorizontal: 1, minWidth: 54 },
       }}
     >
-      <Tabs.Screen name="index" options={{ href: null }} />
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: 'Огляд',
+          tabBarIcon: ({ color, size }) => <Home color={color} size={size ?? 20} />,
+        }}
+      />
 
       <Tabs.Screen
         name="tasks"
         options={{
-          title: 'Завдання',
+          title: showTasks ? 'Завдання' : 'Черга',
           href: showTasks ? undefined : null,
           tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size ?? 20} />,
         }}
@@ -80,6 +84,9 @@ export default function TabsLayout() {
           tabBarIcon: ({ color, size }) => <User color={color} size={size ?? 20} />,
         }}
       />
+
+      <Tabs.Screen name="rooms" options={{ href: null }} />
+      <Tabs.Screen name="rooms-map" options={{ href: null }} />
     </Tabs>
   );
 }
