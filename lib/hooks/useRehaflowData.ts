@@ -7,12 +7,40 @@ import { fetchHistory, fetchPrescriptions } from '@/lib/api/prescriptions';
 import { fetchTask, fetchTasks } from '@/lib/api/tasks';
 import { queryKeys } from '@/lib/query/keys';
 import { useIsOnline } from '@/lib/store/networkStore';
+import { apiRequest } from '@/lib/api/http';
+import { asRecord, pickCollection, readRecord } from '@/lib/api/normalize';
+import { mapPatient } from '@/lib/api/mappers';
+import type { Patient } from '@/lib/api/types';
+
+/**
+ * The active-patient screen must read the same Patient table as the WEB site.
+ * We deliberately mark this request as `web` so the server does not route it
+ * to the legacy mobile-only medical_tasks/patients schema.
+ */
+async function fetchWebPatients(): Promise<Patient[]> {
+  const payload = await apiRequest('/patients/active', {
+    client: 'web',
+    query: { status: 'active', limit: 500 },
+  });
+  const rows = pickCollection(payload, ['patients', 'activePatients', 'data', 'items', 'rows', 'records']);
+  return rows
+    .map((item) => {
+      const record = asRecord(item);
+      const nested = readRecord(record, ['patient', 'person', 'data']);
+      return mapPatient(Object.keys(nested).length > 0 ? nested : record);
+    })
+    .filter((patient) => patient.id)
+    .filter((patient) => {
+      const state = String(patient.state ?? patient.status ?? '').trim().toLowerCase();
+      return !['discharged','inactive','archived','deleted','виписаний','виписана','виписано','неактивний','неактивна'].includes(state);
+    });
+}
 
 export function usePatientsQuery() {
   const online = useIsOnline();
   return useQuery({
     queryKey: queryKeys.patients,
-    queryFn: () => fetchPatients(),
+    queryFn: fetchWebPatients,
     refetchInterval: online ? 10_000 : false,
     refetchIntervalInBackground: false,
     refetchOnMount: 'always',
