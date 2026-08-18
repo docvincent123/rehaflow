@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { CalendarDays, CheckCircle2, ClipboardList, Clock3, HeartPulse, Users } from 'lucide-react-native';
+import { Activity, CalendarDays, CheckCircle2, ClipboardList, Clock3, HeartPulse, Users } from 'lucide-react-native';
 
 import { AppHeader } from '@/components/AppHeader';
 import { Banner } from '@/components/ScreenState';
@@ -90,9 +90,7 @@ export default function HomeScreen() {
 
         <View className="border-border bg-surface rounded-2xl border p-4">
           <Text className="text-foreground text-sm font-bold">Синхронізація з RehaFlow WEB</Text>
-          <Text className="text-muted mt-1 text-[11px] leading-4">
-            Пацієнти, призначення, завдання та історія читаються з тієї ж бази, що й вебсистема. Новий APK не потрібен для зміни даних на сайті.
-          </Text>
+          <Text className="text-muted mt-1 text-[11px] leading-4">Пацієнти, призначення, завдання та історія читаються з тієї ж бази, що й вебсистема. Дані на сайті не потребують нового APK.</Text>
           <View className="mt-3 flex-row items-center gap-2">
             <View className={`h-2.5 w-2.5 rounded-full ${online ? 'bg-success' : 'bg-offline'}`} />
             <Text className="text-foreground text-xs font-semibold">{online ? 'Підключено' : 'Офлайн'}</Text>
