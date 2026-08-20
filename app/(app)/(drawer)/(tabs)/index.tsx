@@ -1,7 +1,7 @@
 import { ActivityIndicator, Pressable, ScrollView, Text, View } from 'react-native';
 import { router } from 'expo-router';
 import { useMemo } from 'react';
-import { Activity, CalendarDays, CheckCircle2, ClipboardList, Clock3, HeartPulse, Users } from 'lucide-react-native';
+import { Activity, CheckCircle2, ClipboardList, HeartPulse, Users } from 'lucide-react-native';
 
 import { AppHeader } from '@/components/AppHeader';
 import { Banner } from '@/components/ScreenState';
@@ -24,76 +24,55 @@ function StatCard({ icon: Icon, label, value, tint = navColors.accent, onPress }
   );
 }
 
-function ActionCard({ icon: Icon, title, subtitle, onPress }: { icon: any; title: string; subtitle: string; onPress: () => void }) {
-  return (
-    <Pressable onPress={onPress} className="border-border bg-surface flex-row items-center gap-3 rounded-2xl border p-4" style={({ pressed }) => ({ opacity: pressed ? 0.82 : 1 })}>
-      <View className="bg-accent-soft h-11 w-11 items-center justify-center rounded-xl"><Icon color={navColors.accent} size={20} /></View>
-      <View className="min-w-0 flex-1">
-        <Text className="text-foreground text-sm font-bold">{title}</Text>
-        <Text className="text-muted mt-0.5 text-[11px]">{subtitle}</Text>
-      </View>
-    </Pressable>
-  );
-}
-
 export default function HomeScreen() {
   const user = useCurrentUser();
   const online = useIsOnline();
   const patients = usePatientsQuery();
   const tasks = useTasksQuery();
-
   const patientCount = patients.data?.length ?? 0;
   const taskData = tasks.data ?? [];
   const newTasks = useMemo(() => taskData.filter(isOpenTask).length, [taskData]);
-  const workingTasks = useMemo(() => taskData.filter(isWorkingTask).length, [taskData]);
-  const doneTasks = useMemo(() => taskData.filter((task) => task.status === 'COMPLETED').length, [taskData]);
+  const workingTasks = useMemo(() => taskData.filter((task) => isWorkingTask(task) && (user?.role !== 'NURSE' || task.claimedById === user?.id)).length, [taskData, user?.role, user?.id]);
+  const doneTasks = useMemo(() => taskData.filter((task) => task.status === 'COMPLETED' && (user?.role !== 'NURSE' || task.claimedById === user?.id)).length, [taskData, user?.role, user?.id]);
   const isNurse = user?.role === 'NURSE';
+  const urgentTasks = useMemo(() => taskData.filter((task) => isOpenTask(task) && task.priority === 'URGENT').length, [taskData]);
 
   return (
     <View className="bg-background flex-1">
-      <AppHeader title="Робочий центр" subtitle={user?.fullName ?? 'RehaFlow'} />
+      <AppHeader title="Огляд" subtitle={user?.fullName ?? 'RehaFlow'} />
       <ScrollView contentContainerClassName="gap-4 px-4 pb-8 pt-4" showsVerticalScrollIndicator={false}>
-        {!online ? <Banner tone="warning" message="Офлайн. Показані останні збережені дані, нові дії можуть бути недоступні." /> : null}
+        {!online ? <Banner tone="warning" message="Офлайн. Показані останні збережені дані." /> : null}
         {patients.isError ? <Banner tone="danger" message={`Пацієнти: ${errorMessage(patients.error)}`} /> : null}
 
         <View className="rounded-3xl bg-header px-5 py-5">
-          <Text className="text-header-foreground/80 text-[11px] font-semibold uppercase tracking-widest">Сьогодні</Text>
-          <Text className="text-header-foreground mt-1 text-2xl font-bold">{isNurse ? 'Черга медсестри' : 'Робоче місце лікаря'}</Text>
-          <Text className="text-header-foreground/80 mt-1 text-xs leading-4">
-            {isNurse ? 'Бери вільні завдання, виконуй їх та одразу фіксуй результат.' : 'Переглядай пацієнтів, давай призначення і контролюй виконання.'}
-          </Text>
+          <Text className="text-header-foreground/80 text-[11px] font-semibold uppercase tracking-widest">RehaFlow</Text>
+          <Text className="text-header-foreground mt-1 text-2xl font-bold">{isNurse ? 'Робоче місце медсестри' : 'Робоче місце лікаря'}</Text>
+          <Text className="text-header-foreground/80 mt-1 text-xs leading-4">{isNurse ? 'Мої пацієнти, нові завдання та виконання без зайвих екранів.' : 'Пацієнти, призначення та контроль виконання в одному екрані.'}</Text>
         </View>
 
         <View className="flex-row gap-3">
           <StatCard icon={Users} label="Активні пацієнти" value={patients.isLoading ? '…' : String(patientCount)} onPress={() => router.push('/patients')} />
-          <StatCard icon={ClipboardList} label={isNurse ? 'Нові завдання' : 'Завдання'} value={tasks.isLoading ? '…' : String(newTasks)} tint={navColors.urgent} onPress={() => router.push('/tasks')} />
+          <StatCard icon={ClipboardList} label={isNurse ? 'Нові завдання' : 'Призначення' } value={tasks.isLoading ? '…' : String(newTasks)} tint={navColors.urgent} onPress={() => router.push(isNurse ? '/tasks' : '/prescriptions')} />
         </View>
         <View className="flex-row gap-3">
-          <StatCard icon={Activity} label="В роботі" value={String(workingTasks)} tint={navColors.success} onPress={() => router.push('/tasks')} />
-          <StatCard icon={CheckCircle2} label="Завершено" value={String(doneTasks)} tint={navColors.success} onPress={() => router.push('/tasks')} />
+          <StatCard icon={Activity} label="Активні" value={String(workingTasks)} tint={navColors.success} onPress={() => router.push('/tasks')} />
+          <StatCard icon={CheckCircle2} label="Виконано" value={String(doneTasks)} tint={navColors.success} onPress={() => router.push('/tasks')} />
         </View>
 
-        <View className="gap-3">
-          <View className="flex-row items-center gap-2 px-1">
-            <HeartPulse color={navColors.accent} size={17} />
-            <Text className="text-foreground text-base font-bold">Швидкі дії</Text>
+        <Pressable onPress={() => router.push('/tasks')} className="border-border bg-surface rounded-2xl border p-4" style={({ pressed }) => ({ opacity: pressed ? 0.82 : 1 })}>
+          <View className="flex-row items-center gap-2">
+            <HeartPulse color={navColors.accent} size={18} />
+            <Text className="text-foreground flex-1 text-base font-bold">Стан роботи</Text>
+            <Text className="text-accent text-xs font-bold">Відкрити</Text>
           </View>
-          {isNurse ? (
-            <ActionCard icon={ClipboardList} title="Відкрити чергу" subtitle="Нові завдання від лікарів" onPress={() => router.push('/tasks')} />
-          ) : (
-            <ActionCard icon={ClipboardList} title="Створити / перевірити призначення" subtitle="Призначення пацієнтам та контроль виконання" onPress={() => router.push('/prescriptions')} />
-          )}
-          <ActionCard icon={Users} title="Пацієнти" subtitle="Картки, палати, лікарі та історія" onPress={() => router.push('/patients')} />
-          <ActionCard icon={Clock3} title="Моя зміна" subtitle="Почати, завершити та переглянути зміну" onPress={() => router.push('/profile')} />
-          <ActionCard icon={CalendarDays} title="Історія" subtitle="Події та виконані процедури" onPress={() => router.push('/history')} />
-        </View>
+          <Text className="text-muted mt-2 text-xs">{newTasks ? `${newTasks} нових завдань${urgentTasks ? ` · ${urgentTasks} термінових` : ''}` : 'Нових завдань немає'}</Text>
+        </Pressable>
 
         <View className="border-border bg-surface rounded-2xl border p-4">
-          <Text className="text-foreground text-sm font-bold">Синхронізація з RehaFlow WEB</Text>
-          <Text className="text-muted mt-1 text-[11px] leading-4">Пацієнти, призначення, завдання та історія читаються з тієї ж бази, що й вебсистема. Дані на сайті не потребують нового APK.</Text>
-          <View className="mt-3 flex-row items-center gap-2">
+          <Text className="text-foreground text-sm font-bold">Стан синхронізації</Text>
+          <View className="mt-2 flex-row items-center gap-2">
             <View className={`h-2.5 w-2.5 rounded-full ${online ? 'bg-success' : 'bg-offline'}`} />
-            <Text className="text-foreground text-xs font-semibold">{online ? 'Підключено' : 'Офлайн'}</Text>
+            <Text className="text-foreground text-xs font-semibold">{online ? 'Система онлайн' : 'Немає підключення'}</Text>
             {(patients.isRefetching || tasks.isRefetching) ? <ActivityIndicator color={navColors.accent} size="small" /> : null}
           </View>
         </View>
