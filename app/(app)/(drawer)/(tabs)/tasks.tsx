@@ -49,6 +49,7 @@ export default function TasksScreen() {
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const seenTaskIds = useRef<Set<string>>(new Set());
   const isNurse = user?.role === 'NURSE';
+  const tasks = useMemo(() => query.data ?? [], [query.data]);
 
   useEffect(() => { if (isNurse) void configureTaskAlerts(); }, [isNurse]);
 
@@ -66,9 +67,7 @@ export default function TasksScreen() {
     }
     for (const task of open) void startTaskRinging(task);
     for (const taskId of Array.from(seenTaskIds.current)) if (!openIds.has(taskId)) void stopTaskRinging(taskId);
-  }, [isNurse, query.data]);
-
-  const tasks = useMemo(() => query.data ?? [], [query.data]);
+  }, [isNurse, tasks]);
 
   const pendingTaskIds = useMemo(() => {
     const ids = new Set<string>();
