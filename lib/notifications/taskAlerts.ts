@@ -3,6 +3,7 @@ import { Platform } from 'react-native';
 import type { MedicalTask } from '@/lib/api/types';
 
 let configured = false;
+const repeatingNotificationIds = new Map<string, string>();
 
 export async function configureTaskAlerts(): Promise<boolean> {
   if (configured) return true;
@@ -39,21 +40,37 @@ export async function configureTaskAlerts(): Promise<boolean> {
   }
 }
 
-export async function ringForNewTask(task: MedicalTask): Promise<void> {
+async function schedule(task: MedicalTask, repeats: boolean): Promise<void> {
   const ready = await configureTaskAlerts();
   if (!ready) return;
-
   try {
-    await Notifications.scheduleNotificationAsync({
+    const id = await Notifications.scheduleNotificationAsync({
       content: {
         title: task.priority === 'URGENT' ? '🔔 Термінове медичне завдання' : '🔔 Нове медичне завдання',
         body: `${task.patientName} · ${task.title}`,
         sound: 'default',
         data: { taskId: task.id, route: `/task/${task.id}` },
       },
-      trigger: null,
+      trigger: repeats ? { type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL, seconds: 20, repeats: true } : null,
     });
+    if (repeats) repeatingNotificationIds.set(task.id, id);
   } catch {
     // Notification failures must never break the task feed.
   }
+}
+
+export async function ringForNewTask(task: MedicalTask): Promise<void> {
+  await schedule(task, false);
+}
+
+export async function startTaskRinging(task: MedicalTask): Promise<void> {
+  if (repeatingNotificationIds.has(task.id)) return;
+  await schedule(task, true);
+}
+
+export async function stopTaskRinging(taskId: string): Promise<void> {
+  const notificationId = repeatingNotificationIds.get(taskId);
+  if (!notificationId) return;
+  try { await Notifications.cancelScheduledNotificationAsync(notificationId); } catch {}
+  repeatingNotificationIds.delete(taskId);
 }
