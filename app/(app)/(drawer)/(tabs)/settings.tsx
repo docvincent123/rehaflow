@@ -5,8 +5,8 @@ import { useEffect, useState } from 'react';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 import { AppHeader } from '@/components/AppHeader';
-import { Banner, SectionCard } from '@/components/ScreenState';
-import { InfoRow } from '@/components/SectionCard';
+import { Banner } from '@/components/ScreenState';
+import { SectionCard, InfoRow } from '@/components/SectionCard';
 import { navColors } from '@/lib/theme';
 import { useCurrentUser, useAuthStore } from '@/lib/store/authStore';
 import { useIsOnline } from '@/lib/store/networkStore';
