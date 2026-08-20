@@ -9,9 +9,7 @@ import { getDeviceMeta } from '@/lib/device';
 
 export async function fetchTasks(): Promise<MedicalTask[]> {
   const payload = await apiRequest(endpoints.tasks.list, { query: { limit: 300 } });
-  return pickCollection(payload, ['tasks', 'assignments'])
-    .map(mapTask)
-    .filter((task) => task.id);
+  return pickCollection(payload, ['tasks', 'assignments']).map(mapTask).filter((task) => task.id);
 }
 
 export async function fetchTask(id: string): Promise<MedicalTask> {
@@ -19,17 +17,20 @@ export async function fetchTask(id: string): Promise<MedicalTask> {
   return mapTask(pickEntity(payload, ['task']));
 }
 
-/**
- * "Хто перший взяв". Захоплення виконує СЕРВЕР атомарно.
- * Якщо сервер відповідає 409 — завдання вже за іншою медсестрою.
- */
 export async function claimTask(id: string): Promise<MedicalTask> {
   try {
     const payload = await apiRequest(endpoints.tasks.claim(id), {
       method: 'POST',
       body: { deviceId: getDeviceMeta()?.deviceId },
     });
-    return mapTask(pickEntity(payload, ['task']));
+    const returned = mapTask(pickEntity(payload, ['task']));
+    // Some API deployments confirm the write with a minimal response. Read the
+    // task once more so the client always receives the server's persisted assignee.
+    try {
+      return await fetchTask(id);
+    } catch {
+      return returned;
+    }
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       const record = asRecord(error.payload);
@@ -37,9 +38,7 @@ export async function claimTask(id: string): Promise<MedicalTask> {
         readString(record, ['claimedByName', 'nurseName', 'assigneeName']) ??
         readString(asRecord(record.task ?? record.data), ['claimedByName', 'nurseName']);
       throw new TaskTakenError(
-        claimedByName
-          ? `Завдання вже виконується медсестрою ${claimedByName}`
-          : 'Завдання вже виконується іншою медсестрою',
+        claimedByName ? `Завдання вже виконується медсестрою ${claimedByName}` : 'Завдання вже виконується іншою медсестрою',
         claimedByName,
         error.payload,
       );
@@ -49,50 +48,26 @@ export async function claimTask(id: string): Promise<MedicalTask> {
 }
 
 export async function startTask(id: string): Promise<MedicalTask> {
-  const payload = await apiRequest(endpoints.tasks.start(id), {
-    method: 'POST',
-    body: { deviceId: getDeviceMeta()?.deviceId },
-  });
+  const payload = await apiRequest(endpoints.tasks.start(id), { method: 'POST', body: { deviceId: getDeviceMeta()?.deviceId } });
   return mapTask(pickEntity(payload, ['task']));
 }
 
 export async function completeTask(id: string, comment: string): Promise<MedicalTask> {
   const device = getDeviceMeta();
-  const payload = await apiRequest(endpoints.tasks.complete(id), {
-    method: 'POST',
-    body: {
-      comment: comment.trim(),
-      completedAt: new Date().toISOString(),
-      deviceId: device?.deviceId,
-      device: device?.label,
-    },
-  });
+  const payload = await apiRequest(endpoints.tasks.complete(id), { method: 'POST', body: { comment: comment.trim(), completedAt: new Date().toISOString(), deviceId: device?.deviceId, device: device?.label } });
   return mapTask(pickEntity(payload, ['task']));
 }
 
 export async function cancelTask(id: string, reason: string): Promise<MedicalTask> {
-  const payload = await apiRequest(endpoints.tasks.cancel(id), {
-    method: 'POST',
-    body: { reason: reason.trim(), deviceId: getDeviceMeta()?.deviceId },
-  });
+  const payload = await apiRequest(endpoints.tasks.cancel(id), { method: 'POST', body: { reason: reason.trim(), deviceId: getDeviceMeta()?.deviceId } });
   return mapTask(pickEntity(payload, ['task']));
 }
 
 const OPEN_STATUSES: TaskStatus[] = ['CREATED', 'AVAILABLE'];
 const WORKING_STATUSES: TaskStatus[] = ['CLAIMED', 'IN_PROGRESS'];
-
-export function isOpenTask(task: MedicalTask): boolean {
-  return OPEN_STATUSES.includes(task.status);
-}
-
-export function isWorkingTask(task: MedicalTask): boolean {
-  return WORKING_STATUSES.includes(task.status);
-}
-
-export function isMyTask(task: MedicalTask, userId: string | undefined): boolean {
-  return Boolean(userId) && task.claimedById === userId;
-}
-
+export function isOpenTask(task: MedicalTask): boolean { return OPEN_STATUSES.includes(task.status); }
+export function isWorkingTask(task: MedicalTask): boolean { return WORKING_STATUSES.includes(task.status); }
+export function isMyTask(task: MedicalTask, userId: string | undefined): boolean { return Boolean(userId) && task.claimedById === userId; }
 export function sortTasks(tasks: MedicalTask[]): MedicalTask[] {
   return [...tasks].sort((left, right) => {
     if (left.priority !== right.priority) return left.priority === 'URGENT' ? -1 : 1;
