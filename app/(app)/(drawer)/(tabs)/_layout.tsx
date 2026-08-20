@@ -1,4 +1,4 @@
-import { ClipboardList, History, Home, Stethoscope, User, Users } from 'lucide-react-native';
+import { ClipboardList, Home, Stethoscope, Users } from 'lucide-react-native';
 import { Tabs } from 'expo-router';
 
 import { canCreatePrescription, canSeeTaskQueue } from '@/lib/permissions';
@@ -32,15 +32,16 @@ export default function TabsLayout() {
         tabBarActiveTintColor: navColors.accent,
         tabBarInactiveTintColor: navColors.muted,
         tabBarLabelStyle: { fontSize: 9, fontWeight: '700' },
-        tabBarItemStyle: { paddingHorizontal: 1, minWidth: 54 },
+        tabBarItemStyle: { paddingHorizontal: 2, minWidth: 62 },
       }}
     >
       <Tabs.Screen name="index" options={{ title: 'Огляд', tabBarIcon: ({ color, size }) => <Home color={color} size={size ?? 20} /> }} />
-      <Tabs.Screen name="tasks" options={{ title: showTasks ? 'Завдання' : 'Черга', href: showTasks ? undefined : null, tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size ?? 20} /> }} />
       <Tabs.Screen name="patients" options={{ title: 'Пацієнти', tabBarIcon: ({ color, size }) => <Users color={color} size={size ?? 20} /> }} />
       <Tabs.Screen name="prescriptions" options={{ title: 'Призначення', href: showPrescriptions ? undefined : null, tabBarIcon: ({ color, size }) => <Stethoscope color={color} size={size ?? 20} /> }} />
-      <Tabs.Screen name="history" options={{ title: 'Історія', tabBarIcon: ({ color, size }) => <History color={color} size={size ?? 20} /> }} />
-      <Tabs.Screen name="profile" options={{ title: 'Профіль', tabBarIcon: ({ color, size }) => <User color={color} size={size ?? 20} /> }} />
+      <Tabs.Screen name="tasks" options={{ title: showTasks ? 'Завдання' : 'Черга', href: showTasks ? undefined : null, tabBarIcon: ({ color, size }) => <ClipboardList color={color} size={size ?? 20} /> }} />
+      <Tabs.Screen name="history" options={{ href: null }} />
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }
