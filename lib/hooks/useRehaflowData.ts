@@ -1,8 +1,8 @@
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 
 import { POLL_INTERVAL_MS } from '@/lib/api/config';
-import { fetchDevices, fetchCurrentShift } from '@/lib/api/devices';
-import { fetchPatient, fetchPatientDocuments, fetchPatientHistory, fetchPatientPrescriptions, fetchPatientTasks, fetchPatients } from '@/lib/api/patients';
+import { fetchCurrentShift, fetchDevices } from '@/lib/api/devices';
+import { fetchPatient, fetchPatientDocuments, fetchPatientHistory, fetchPatientPrescriptions, fetchPatientTasks } from '@/lib/api/patients';
 import { fetchHistory, fetchPrescriptions } from '@/lib/api/prescriptions';
 import { fetchTask, fetchTasks } from '@/lib/api/tasks';
 import { queryKeys } from '@/lib/query/keys';
@@ -12,11 +12,6 @@ import { asRecord, pickCollection, readRecord } from '@/lib/api/normalize';
 import { mapPatient } from '@/lib/api/mappers';
 import type { Patient } from '@/lib/api/types';
 
-/**
- * The active-patient screen must read the same Patient table as the WEB site.
- * We deliberately mark this request as `web` so the server does not route it
- * to the legacy mobile-only medical_tasks/patients schema.
- */
 async function fetchWebPatients(): Promise<Patient[]> {
   const payload = await apiRequest('/patients/active', {
     client: 'web',
@@ -32,22 +27,52 @@ async function fetchWebPatients(): Promise<Patient[]> {
     .filter((patient) => patient.id)
     .filter((patient) => {
       const state = String(patient.state ?? patient.status ?? '').trim().toLowerCase();
-      return !['discharged','inactive','archived','deleted','виписаний','виписана','виписано','неактивний','неактивна'].includes(state);
+      return !['discharged', 'inactive', 'archived', 'deleted', 'виписаний', 'виписана', 'виписано', 'неактивний', 'неактивна'].includes(state);
     });
+}
+
+async function fetchActivePatientCount(): Promise<number> {
+  const payload = await apiRequest('/patients/active', {
+    client: 'web',
+    query: { status: 'active', limit: 1, offset: 0 },
+  });
+  const record = asRecord(payload);
+  const explicit = Number(record.total ?? record.count ?? record.totalPatients ?? record.activeCount);
+  if (Number.isFinite(explicit) && explicit >= 0) return explicit;
+  const rows = pickCollection(payload, ['patients', 'activePatients', 'data', 'items', 'rows', 'records']);
+  return rows.length;
 }
 
 export function usePatientsQuery() {
   const online = useIsOnline();
-  return useQuery({
+  const queryClient = useQueryClient();
+  const patientsQuery = useQuery({
     queryKey: queryKeys.patients,
     queryFn: fetchWebPatients,
-    refetchInterval: online ? 10_000 : false,
-    refetchIntervalInBackground: false,
-    refetchOnMount: 'always',
-    refetchOnWindowFocus: true,
-    refetchOnReconnect: true,
-    staleTime: 0,
+    staleTime: Infinity,
+    gcTime: 1000 * 60 * 60 * 24,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchOnReconnect: false,
   });
+
+  useQuery({
+    queryKey: ['patients', 'version'],
+    queryFn: fetchActivePatientCount,
+    enabled: online,
+    staleTime: 8_000,
+    refetchInterval: 8_000,
+    refetchIntervalInBackground: false,
+    refetchOnWindowFocus: false,
+    onSuccess: (count) => {
+      const current = queryClient.getQueryData<Patient[]>(queryKeys.patients) ?? [];
+      if (count > current.length) {
+        void queryClient.invalidateQueries({ queryKey: queryKeys.patients, exact: true });
+      }
+    },
+  });
+
+  return patientsQuery;
 }
 
 export function usePatientQuery(id: string | undefined) { return useQuery({ queryKey: queryKeys.patient(id ?? ''), queryFn: () => fetchPatient(id ?? ''), enabled: Boolean(id) }); }
