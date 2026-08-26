@@ -19,10 +19,11 @@ const role = (user) => String(user?.role ?? '').toUpperCase();
 function deny(user, roles) { if (!user) return json(401,{error:'Не авторизовано'}); if (roles && !roles.has(role(user))) return json(403,{error:'Недостатньо прав для цієї дії'}); return null; }
 async function audit(user, action, entity, entityId, payload, event) { try { await db.execute({sql:`INSERT INTO audit_log (id,created_at,user_id,user_role,action,entity,entity_id,device_id,ip,payload) VALUES (?,?,?,?,?,?,?,?,?,?)`,args:[id('aud'),now(),user?.id??null,user?.role??null,action,entity??null,entityId??null,event?.headers?.['x-device-id']??null,event?.headers?.['x-forwarded-for']??null,payload?JSON.stringify(payload):null]}); } catch {} }
 
-const TABLES = new Set(['users','rooms','beds','patients','staff_shifts','audit_log','medical_tasks','prescriptions','patient_history','staff_devices','admin_cabinets','staff_invites','admin_notifications']);
+const TABLES = new Set(['users','rooms','beds','patients','staff_shifts','audit_log','medical_tasks','prescriptions','patient_history','staff_devices','admin_cabinets','admin_appointments','staff_invites','admin_notifications']);
 async function tableExists(table) { const r=await db.execute({sql:`SELECT name FROM sqlite_master WHERE type='table' AND name=?`,args:[table]}); return r.rows.length>0; }
 async function ensureSupportTables() {
   await db.execute(`CREATE TABLE IF NOT EXISTS admin_cabinets (id TEXT PRIMARY KEY,name TEXT NOT NULL,number TEXT,type TEXT,status TEXT NOT NULL DEFAULT 'ACTIVE',capacity INTEGER,building TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)`);
+  await db.execute(`CREATE TABLE IF NOT EXISTS admin_appointments (id TEXT PRIMARY KEY,patient_id TEXT,patient_name TEXT,doctor_id TEXT,doctor_name TEXT,cabinet_id TEXT,cabinet_name TEXT,scheduled_at TEXT NOT NULL,status TEXT NOT NULL DEFAULT 'SCHEDULED',notes TEXT,created_by TEXT,created_at TEXT NOT NULL,updated_at TEXT NOT NULL)`);
   await db.execute(`CREATE TABLE IF NOT EXISTS staff_invites (id TEXT PRIMARY KEY,full_name TEXT NOT NULL,email TEXT NOT NULL,role TEXT NOT NULL,department TEXT,status TEXT NOT NULL DEFAULT 'PENDING',invite_code TEXT NOT NULL,created_by TEXT,created_at TEXT NOT NULL,accepted_at TEXT)`);
   await db.execute(`CREATE TABLE IF NOT EXISTS admin_notifications (id TEXT PRIMARY KEY,type TEXT NOT NULL,title TEXT NOT NULL,body TEXT,entity_id TEXT,created_at TEXT NOT NULL,read_at TEXT)`);
 }
@@ -60,13 +61,19 @@ export async function handleAdminRoute(event, user) {
 
   if (path==='/admin/permissions' && method==='GET') {
     const r=role(user);
-    return json(200,{role:r,permissions:{dashboard:true,patientsRead:true,patientsWrite:PATIENT_WRITE.has(r),tasksRead:true,prescriptionsCreate:CLINICAL_LEADS.has(r),staffRead:STAFF_READ.has(r),staffManage:OWNER_ADMIN.has(r),roomsRead:true,bedsRead:true,roomsManage:MANAGEMENT.has(r),bedsManage:MANAGEMENT.has(r),cabinetsRead:true,cabinetsManage:MANAGEMENT.has(r),archiveRead:MANAGEMENT.has(r),archiveManage:MANAGEMENT.has(r),auditRead:OWNER_ADMIN.has(r),backup:OWNER_ADMIN.has(r),shiftsRead:true},roles:ALL_ROLES});
+    return json(200,{role:r,permissions:{dashboard:true,patientsRead:true,patientsWrite:PATIENT_WRITE.has(r),tasksRead:true,prescriptionsCreate:CLINICAL_LEADS.has(r),staffRead:STAFF_READ.has(r),staffManage:OWNER_ADMIN.has(r),roomsRead:true,bedsRead:true,roomsManage:MANAGEMENT.has(r),bedsManage:MANAGEMENT.has(r),cabinetsRead:true,cabinetsManage:MANAGEMENT.has(r),appointmentsRead:true,appointmentsManage:MANAGEMENT.has(r),archiveRead:MANAGEMENT.has(r),archiveManage:MANAGEMENT.has(r),auditRead:OWNER_ADMIN.has(r),backup:OWNER_ADMIN.has(r),shiftsRead:true},roles:ALL_ROLES});
   }
 
   // -------------------- ПОВНИЙ ПРОФІЛЬ ПАЦІЄНТА --------------------
   if(path==='/admin/patients'&&method==='GET'){
     const d=deny(user,PATIENT_WRITE);if(d)return d;
     return json(200,{patients:await selectTable('patients','',[],2000)});
+  }
+  if(path.startsWith('/admin/patients/')&&method==='GET'){
+    const d=deny(user,PATIENT_WRITE);if(d)return d;
+    const patientId=decodeURIComponent(path.split('/').pop());
+    const rows=await selectTable('patients','id=?',[patientId],1);
+    return rows.length?json(200,{patient:rows[0]}):json(404,{error:'Пацієнта не знайдено'});
   }
   if(path==='/admin/patients'&&method==='POST'){
     const d=deny(user,PATIENT_WRITE);if(d)return d;
@@ -79,6 +86,7 @@ export async function handleAdminRoute(event, user) {
         diagnosis:['diagnosis'], complaints:['complaints'], allergies:['allergies'], chronic_conditions:['chronicConditions','chronic_conditions'], notes:['notes']
       });
       await audit(user,'PATIENT_CREATE','patient',created.id,body,event);
+      try { await db.execute({sql:`INSERT INTO admin_notifications (id,type,title,body,entity_id,created_at) VALUES (?,?,?,?,?,?)`,args:[id('notif'),'PATIENT_REGISTERED','Новий пацієнт',`Зареєстровано: ${body.fullName??body.lastName??created.id}`,created.id,now()]}); } catch {}
       return json(201,{ok:true,patientId:created.id});
     } catch(e){ return json(409,{error:e.message}); }
   }
@@ -124,6 +132,16 @@ export async function handleAdminRoute(event, user) {
     const d=deny(user,MANAGEMENT);if(d)return d; const cid=decodeURIComponent(path.split('/').pop()); const updates={}; for(const k of ['name','number','type','status','capacity','building'])if(body[k]!==undefined)updates[k]=body[k]; if(!Object.keys(updates).length)return json(400,{error:'Немає полів для зміни'}); const set=Object.keys(updates).map(k=>`${k}=?`).join(','); const r=await db.execute({sql:`UPDATE admin_cabinets SET ${set},updated_at=? WHERE id=?`,args:[...Object.values(updates),now(),cid]}); if(!r.rowsAffected)return json(404,{error:'Кабінет не знайдено'}); await audit(user,'CABINET_UPDATE','cabinet',cid,updates,event); return json(200,{ok:true});
   }
 
+  // -------------------- КАБІНЕТИ / ЗАПИСИ --------------------
+  if(path==='/admin/appointments'&&method==='GET')return json(200,{appointments:await selectTable('admin_appointments','',[],2000)});
+  if(path==='/admin/appointments'&&method==='POST'){
+    const d=deny(user,new Set(['OWNER','ADMIN','RECEPTION','DOCTOR']));if(d)return d;
+    try { const created=await insertKnown('admin_appointments',body,{id:['id'],patient_id:['patientId','patient_id'],patient_name:['patientName','patient_name'],doctor_id:['doctorId','doctor_id'],doctor_name:['doctorName','doctor_name'],cabinet_id:['cabinetId','cabinet_id'],cabinet_name:['cabinetName','cabinet_name'],scheduled_at:['scheduledAt','scheduled_at'],status:['status'],notes:['notes']}); if(!created.id)return json(400,{error:'Не вдалося створити запис'}); const cols=await tableColumns('admin_appointments'); if(cols.includes('created_by')) await db.execute({sql:`UPDATE admin_appointments SET created_by=?,updated_at=? WHERE id=?`,args:[user.id,now(),created.id]}); await audit(user,'APPOINTMENT_CREATE','appointment',created.id,body,event); return json(201,{ok:true,appointmentId:created.id}); } catch(e){ return json(409,{error:e.message}); }
+  }
+  if(path.startsWith('/admin/appointments/')&&method==='PATCH'){
+    const d=deny(user,new Set(['OWNER','ADMIN','RECEPTION','DOCTOR']));if(d)return d; const aid=decodeURIComponent(path.split('/').pop()); const allowed=['patient_id','patient_name','doctor_id','doctor_name','cabinet_id','cabinet_name','scheduled_at','status','notes']; const cols=await tableColumns('admin_appointments'); const updates={}; for(const k of allowed)if(cols.includes(k)&&body[k]!==undefined)updates[k]=body[k]; if(body.patientId!==undefined&&cols.includes('patient_id'))updates.patient_id=body.patientId; if(body.patientName!==undefined&&cols.includes('patient_name'))updates.patient_name=body.patientName; if(body.doctorName!==undefined&&cols.includes('doctor_name'))updates.doctor_name=body.doctorName; if(body.cabinetName!==undefined&&cols.includes('cabinet_name'))updates.cabinet_name=body.cabinetName; if(body.scheduledAt!==undefined&&cols.includes('scheduled_at'))updates.scheduled_at=body.scheduledAt; if(!Object.keys(updates).length)return json(400,{error:'Немає полів для зміни'}); const set=Object.keys(updates).map(k=>`${k}=?`).join(','); const r=await db.execute({sql:`UPDATE admin_appointments SET ${set},updated_at=? WHERE id=?`,args:[...Object.values(updates),now(),aid]}); if(!r.rowsAffected)return json(404,{error:'Запис не знайдено'}); await audit(user,'APPOINTMENT_UPDATE','appointment',aid,updates,event); return json(200,{ok:true});
+  }
+
   if(path==='/admin/staff'&&method==='GET'){
     const d=deny(user,STAFF_READ);if(d)return d; return json(200,{columns:await tableColumns('users'),staff:await selectTable('users','',[],1000),invites:await selectTable('staff_invites','',[],300)});
   }
@@ -160,7 +178,7 @@ export async function handleAdminRoute(event, user) {
   }
 
   if(path==='/admin/backup'&&method==='POST'){
-    const d=deny(user,OWNER_ADMIN);if(d)return d; const names=['users','patients','rooms','beds','medical_tasks','prescriptions','patient_history','staff_shifts','staff_devices','audit_log','admin_cabinets','staff_invites']; const snapshot={generatedAt:now(),generatedBy:user.id,role:role(user),tables:{}}; for(const t of names){if(await tableExists(t))snapshot.tables[t]=await selectTable(t,'',[],5000);} await audit(user,'BACKUP_EXPORT','database',null,{tables:Object.keys(snapshot.tables)},event); return json(200,snapshot);
+    const d=deny(user,OWNER_ADMIN);if(d)return d; const names=['users','patients','rooms','beds','medical_tasks','prescriptions','patient_history','staff_shifts','staff_devices','audit_log','admin_cabinets','admin_appointments','staff_invites']; const snapshot={generatedAt:now(),generatedBy:user.id,role:role(user),tables:{}}; for(const t of names){if(await tableExists(t))snapshot.tables[t]=await selectTable(t,'',[],5000);} await audit(user,'BACKUP_EXPORT','database',null,{tables:Object.keys(snapshot.tables)},event); return json(200,snapshot);
   }
 
   return null;
