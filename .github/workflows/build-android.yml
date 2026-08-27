@@ -19,13 +19,12 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
-      - name: Setup Node
-        uses: actions/setup-node@v4
+      - name: Setup Node 24
+        uses: actions/setup-node@v5
         with:
-          node-version: 22
-          cache: npm
+          node-version: 24
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -44,13 +43,17 @@ jobs:
       - name: Validate Expo configuration
         run: npx expo config --type public --json > expo-config.json
 
-      - name: Setup Expo/EAS
-        uses: expo/expo-github-action@v8
-        with:
-          eas-version: latest
-          token: ${{ secrets.EXPO_TOKEN }}
+      - name: Install EAS CLI
+        run: npm install --global eas-cli@latest --no-audit --no-fund
+
+      - name: Validate authenticated Expo account
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas whoami
 
       - name: Create or link EAS project
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -66,6 +69,8 @@ jobs:
           node -e "const c=require('./expo-config-linked.json'); const id=c?.extra?.eas?.projectId; if(!id){throw new Error('extra.eas.projectId is missing after EAS init')} console.log('EAS projectId:', id)"
 
       - name: Build Android APK
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
         shell: bash
         run: |
           set -euo pipefail
@@ -91,7 +96,6 @@ jobs:
           fs.writeFileSync('build-id.txt', id);
           fs.writeFileSync('apk-url.txt', url);
           console.log('Build ID:', id);
-          console.log('APK URL received.');
           NODE
           curl -fL "$(cat apk-url.txt)" -o artifacts/RehaFlow.apk
           test -s artifacts/RehaFlow.apk
