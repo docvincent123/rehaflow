@@ -5,10 +5,7 @@ import { pickCollection, pickEntity } from './normalize';
 import type { CreatePrescriptionInput, HistoryEntry, Prescription } from './types';
 import { getDeviceMeta } from '@/lib/device';
 
-/**
- * Створення призначення. Сервер на цій же операції створює медичне завдання
- * та розсилає його медсестрам, які на зміні.
- */
+/** Створення призначення: тільки лікар. Сервер створює завдання для вибраної ролі. */
 export async function createPrescription(input: CreatePrescriptionInput): Promise<Prescription> {
   const payload = await apiRequest(endpoints.prescriptions.create, {
     method: 'POST',
@@ -23,6 +20,7 @@ export async function createPrescription(input: CreatePrescriptionInput): Promis
       details: input.details?.trim() || undefined,
       scheduledAt: input.scheduledAt,
       priority: input.priority,
+      targetRole: input.targetRole,
       createTask: true,
       source: 'mobile',
       deviceId: getDeviceMeta()?.deviceId,
