@@ -1,13 +1,12 @@
-name: Build Android APK
+name: Build RehaFlow Android APK
 
 on:
   workflow_dispatch:
   push:
-    branches:
-      - main
+    branches: [main]
 
 concurrency:
-  group: rehflow-android-apk
+  group: rehaflow-android-apk
   cancel-in-progress: true
 
 jobs:
@@ -29,76 +28,27 @@ jobs:
       - name: Install dependencies
         run: npm install --no-audit --no-fund
 
-      - name: Generate Android/iOS icons
-        shell: bash
-        run: |
-          set -euo pipefail
-          sudo apt-get update -qq
-          sudo apt-get install -y -qq imagemagick
-          mkdir -p assets
-          convert -background none assets/icon.svg -resize 1024x1024 assets/icon.png
-          convert -background none assets/icon.svg -resize 1024x1024 assets/icon-foreground.png
-          file assets/icon.png assets/icon-foreground.png
+      - name: Install Android SDK
+        uses: android-actions/setup-android@v3
 
-      - name: Validate Expo configuration
-        run: npx expo config --type public --json > expo-config.json
+      - name: Generate native Android project
+        run: npx expo prebuild --platform android --non-interactive
 
-      - name: Install EAS CLI
-        run: npm install --global eas-cli@latest --no-audit --no-fund
+      - name: Build release APK with Gradle
+        working-directory: android
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
-      - name: Validate authenticated Expo account
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        run: eas whoami
-
-      - name: Create or link EAS project
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas init --force --non-interactive
-          PROJECT_ID=$(node -e "const fs=require('fs'); const c=JSON.parse(fs.readFileSync('app.json','utf8')); const id=c?.expo?.extra?.eas?.projectId; if(!id){console.error('EAS projectId was not written to app.json'); process.exit(1)} process.stdout.write(id)")
-          echo "EAS_PROJECT_ID=$PROJECT_ID" >> "$GITHUB_ENV"
-          echo "Linked EAS project: $PROJECT_ID"
-
-      - name: Validate linked EAS configuration
-        run: |
-          set -euo pipefail
-          npx expo config --type public --json > expo-config-linked.json
-          node -e "const c=require('./expo-config-linked.json'); const id=c?.extra?.eas?.projectId; if(!id){throw new Error('extra.eas.projectId is missing after EAS init')} console.log('EAS projectId:', id)"
-
-      - name: Build Android APK
-        env:
-          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          eas build --platform android --profile preview --non-interactive --wait --json > build-result.json
-          cat build-result.json
-
-      - name: Download APK
+      - name: Prepare APK artifact
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p artifacts
-          node - <<'NODE'
-          const fs = require('fs');
-          const data = JSON.parse(fs.readFileSync('build-result.json', 'utf8'));
-          const build = Array.isArray(data) ? data[0] : data;
-          const url = build?.artifacts?.buildUrl;
-          const id = build?.id;
-          if (!url || !id) {
-            console.error('EAS did not return an Android APK URL. Build result:');
-            console.error(JSON.stringify(data, null, 2));
-            process.exit(1);
-          }
-          fs.writeFileSync('build-id.txt', id);
-          fs.writeFileSync('apk-url.txt', url);
-          console.log('Build ID:', id);
-          NODE
-          curl -fL "$(cat apk-url.txt)" -o artifacts/RehaFlow.apk
-          test -s artifacts/RehaFlow.apk
+          APK=$(find android/app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)
+          if [ -z "$APK" ]; then
+            echo "Release APK was not produced"
+            exit 1
+          fi
+          cp "$APK" artifacts/RehaFlow.apk
           ls -lh artifacts/RehaFlow.apk
 
       - name: Upload APK artifact
