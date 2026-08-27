@@ -9,30 +9,16 @@
     "newArchEnabled": true,
     "runtimeVersion": "1.0.1",
     "assetBundlePatterns": ["**/*"],
-    "icon": "./assets/icon.png",
-    "splash": {
-      "image": "./assets/icon.png",
-      "resizeMode": "contain",
-      "backgroundColor": "#0D7F78"
-    },
     "android": {
       "package": "com.rehaflow.mobile",
-      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "POST_NOTIFICATIONS", "VIBRATE"],
-      "adaptiveIcon": {
-        "foregroundImage": "./assets/icon-foreground.png",
-        "backgroundColor": "#0D7F78"
-      }
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "POST_NOTIFICATIONS", "VIBRATE"]
     },
     "ios": {
       "bundleIdentifier": "com.rehaflow.mobile",
       "supportsTablet": true,
       "infoPlist": {"ITSAppUsesNonExemptEncryption": false}
     },
-    "web": {
-      "bundler": "metro",
-      "output": "single",
-      "favicon": "./assets/icon.png"
-    },
+    "web": {"bundler": "metro", "output": "single"},
     "plugins": [
       "expo-router",
       "expo-font",
