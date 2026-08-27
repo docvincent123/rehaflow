@@ -2,14 +2,12 @@
   "expo": {
     "name": "RehaFlow",
     "slug": "rehaflow",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "rehaflow",
     "newArchEnabled": true,
-    "runtimeVersion": {
-      "policy": "appVersion"
-    },
+    "runtimeVersion": "1.0.1",
     "assetBundlePatterns": ["**/*"],
     "icon": "./assets/icon.png",
     "splash": {
@@ -19,12 +17,7 @@
     },
     "android": {
       "package": "com.rehaflow.mobile",
-      "permissions": [
-        "INTERNET",
-        "ACCESS_NETWORK_STATE",
-        "POST_NOTIFICATIONS",
-        "VIBRATE"
-      ],
+      "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "POST_NOTIFICATIONS", "VIBRATE"],
       "adaptiveIcon": {
         "foregroundImage": "./assets/icon-foreground.png",
         "backgroundColor": "#0D7F78"
@@ -33,9 +26,7 @@
     "ios": {
       "bundleIdentifier": "com.rehaflow.mobile",
       "supportsTablet": true,
-      "infoPlist": {
-        "ITSAppUsesNonExemptEncryption": false
-      }
+      "infoPlist": {"ITSAppUsesNonExemptEncryption": false}
     },
     "web": {
       "bundler": "metro",
@@ -46,16 +37,8 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
-      [
-        "expo-notifications",
-        {
-          "color": "#1E88E5"
-        }
-      ]
+      ["expo-notifications", {"color": "#1E88E5"}]
     ],
-    "experiments": {
-      "typedRoutes": true,
-      "reactCompiler": true
-    }
+    "experiments": {"typedRoutes": true, "reactCompiler": true}
   }
 }
