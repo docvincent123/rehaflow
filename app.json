@@ -9,6 +9,11 @@
     "newArchEnabled": true,
     "runtimeVersion": "1.6.21",
     "assetBundlePatterns": ["**/*"],
+    "splash": {
+      "image": "./assets/icon.svg",
+      "resizeMode": "contain",
+      "backgroundColor": "#10141E"
+    },
     "android": {
       "package": "com.rehaflow.mobile",
       "versionCode": 1621,
@@ -24,6 +29,7 @@
       "expo-router",
       "expo-font",
       "expo-secure-store",
+      "expo-updates",
       ["expo-notifications", {"color": "#1E88E5"}]
     ],
     "experiments": {"typedRoutes": true, "reactCompiler": true}
