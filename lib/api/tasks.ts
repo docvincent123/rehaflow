@@ -1,7 +1,7 @@
 import { endpoints } from './endpoints';
 import { TaskTakenError } from './errors';
 import { apiRequest } from './http';
-import { mapTask } from './mappers';
+import { mapTask } from './taskMapper';
 import { asRecord, pickCollection, pickEntity, readString } from './normalize';
 import type { MedicalTask, TaskStatus } from './types';
 import { ApiError } from './errors';
@@ -14,34 +14,19 @@ export async function fetchTasks(): Promise<MedicalTask[]> {
 
 export async function fetchTask(id: string): Promise<MedicalTask> {
   const payload = await apiRequest(endpoints.tasks.detail(id));
-  return mapTask(pickEntity(payload, ['task']));
+  return mapTask(pickEntity(payload, ['task', 'assignment']));
 }
 
 export async function claimTask(id: string): Promise<MedicalTask> {
   try {
-    const payload = await apiRequest(endpoints.tasks.claim(id), {
-      method: 'POST',
-      body: { deviceId: getDeviceMeta()?.deviceId },
-    });
-    const returned = mapTask(pickEntity(payload, ['task']));
-    // Some API deployments confirm the write with a minimal response. Read the
-    // task once more so the client always receives the server's persisted assignee.
-    try {
-      return await fetchTask(id);
-    } catch {
-      return returned;
-    }
+    const payload = await apiRequest(endpoints.tasks.claim(id), { method: 'POST', body: { deviceId: getDeviceMeta()?.deviceId } });
+    const returned = mapTask(pickEntity(payload, ['task', 'assignment']));
+    try { return await fetchTask(id); } catch { return returned; }
   } catch (error) {
     if (error instanceof ApiError && error.status === 409) {
       const record = asRecord(error.payload);
-      const claimedByName =
-        readString(record, ['claimedByName', 'nurseName', 'assigneeName']) ??
-        readString(asRecord(record.task ?? record.data), ['claimedByName', 'nurseName']);
-      throw new TaskTakenError(
-        claimedByName ? `Завдання вже виконується медсестрою ${claimedByName}` : 'Завдання вже виконується іншою медсестрою',
-        claimedByName,
-        error.payload,
-      );
+      const claimedByName = readString(record, ['claimedByName', 'nurseName', 'assigneeName']) ?? readString(asRecord(record.task ?? record.data), ['claimedByName', 'nurseName', 'assigneeName']);
+      throw new TaskTakenError(claimedByName ? `Завдання вже виконується ${claimedByName}` : 'Завдання вже виконується іншим працівником', claimedByName, error.payload);
     }
     throw error;
   }
@@ -49,18 +34,18 @@ export async function claimTask(id: string): Promise<MedicalTask> {
 
 export async function startTask(id: string): Promise<MedicalTask> {
   const payload = await apiRequest(endpoints.tasks.start(id), { method: 'POST', body: { deviceId: getDeviceMeta()?.deviceId } });
-  return mapTask(pickEntity(payload, ['task']));
+  return mapTask(pickEntity(payload, ['task', 'assignment']));
 }
 
 export async function completeTask(id: string, comment: string): Promise<MedicalTask> {
   const device = getDeviceMeta();
   const payload = await apiRequest(endpoints.tasks.complete(id), { method: 'POST', body: { comment: comment.trim(), completedAt: new Date().toISOString(), deviceId: device?.deviceId, device: device?.label } });
-  return mapTask(pickEntity(payload, ['task']));
+  return mapTask(pickEntity(payload, ['task', 'assignment']));
 }
 
 export async function cancelTask(id: string, reason: string): Promise<MedicalTask> {
   const payload = await apiRequest(endpoints.tasks.cancel(id), { method: 'POST', body: { reason: reason.trim(), deviceId: getDeviceMeta()?.deviceId } });
-  return mapTask(pickEntity(payload, ['task']));
+  return mapTask(pickEntity(payload, ['task', 'assignment']));
 }
 
 const OPEN_STATUSES: TaskStatus[] = ['CREATED', 'AVAILABLE'];
