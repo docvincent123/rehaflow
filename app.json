@@ -11,6 +11,7 @@
     "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "com.rehaflow.mobile",
+      "versionCode": 101,
       "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "POST_NOTIFICATIONS", "VIBRATE"]
     },
     "ios": {
