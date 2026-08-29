@@ -1,11 +1,8 @@
-/**
- * Кольори для нативних елементів навігації (React Navigation, StatusBar),
- * куди не можна передавати oklch(...) з global.css.
- * Значення підібрані під токени теми RehaFlow.
- */
+/** Кольори для нативних елементів навігації та системних компонентів RehaFlow. */
 export const navColors = {
   header: '#1D5AB0',
   headerForeground: '#FFFFFF',
+  foreground: '#F4F7FB',
   background: '#10141E',
   surface: '#161C26',
   border: '#2C3442',
