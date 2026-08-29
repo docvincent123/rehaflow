@@ -48,13 +48,14 @@ export default function TasksScreen() {
   const [claiming, setClaiming] = useState<string | null>(null);
   const [alertMessage, setAlertMessage] = useState<string | null>(null);
   const seenTaskIds = useRef<Set<string>>(new Set());
-  const isNurse = user?.role === 'NURSE';
+  const canWork = user?.role === 'NURSE' || user?.role === 'REHAB_SPECIALIST';
+  const roleLabel = user?.role === 'REHAB_SPECIALIST' ? 'реабілітолога' : 'медсестру';
   const tasks = useMemo(() => query.data ?? [], [query.data]);
 
-  useEffect(() => { if (isNurse) void configureTaskAlerts(); }, [isNurse]);
+  useEffect(() => { if (canWork) void configureTaskAlerts(); }, [canWork]);
 
   useEffect(() => {
-    if (!isNurse || tasks.length === 0) return;
+    if (!canWork || tasks.length === 0) return;
     const open = tasks.filter(isOpenTask);
     const openIds = new Set(open.map((task) => task.id));
     const firstLoad = seenTaskIds.current.size === 0;
@@ -67,7 +68,7 @@ export default function TasksScreen() {
     }
     for (const task of open) void startTaskRinging(task);
     for (const taskId of Array.from(seenTaskIds.current)) if (!openIds.has(taskId)) void stopTaskRinging(taskId);
-  }, [isNurse, tasks]);
+  }, [canWork, tasks]);
 
   const pendingTaskIds = useMemo(() => {
     const ids = new Set<string>();
@@ -76,22 +77,22 @@ export default function TasksScreen() {
   }, [queuedActions]);
 
   const groups = useMemo(() => {
-    const open = tasks.filter(isOpenTask);
-    const working = tasks.filter((task) => isWorkingTask(task) && (!isNurse || isMyTask(task, user?.id)));
-    const done = tasks.filter((task) => task.status === 'COMPLETED');
+    const open = tasks.filter((task) => isOpenTask(task) && (!task.targetRole || task.targetRole === user?.role));
+    const working = tasks.filter((task) => isWorkingTask(task) && (!canWork || isMyTask(task, user?.id)));
+    const done = tasks.filter((task) => task.status === 'COMPLETED' && (!canWork || isMyTask(task, user?.id)));
     return { new: open, working, done };
-  }, [tasks, isNurse, user?.id]);
+  }, [tasks, canWork, user?.id, user?.role]);
 
   const rows = useMemo(() => buildRows(groups[tab], tab === 'new'), [groups, tab]);
   const hasData = tasks.length > 0;
 
   const quickClaim = async (task: MedicalTask) => {
-    if (!isNurse || claiming) return;
+    if (!canWork || claiming) return;
     setClaiming(task.id);
     try {
       await claimTask(task.id);
       await stopTaskRinging(task.id);
-      setAlertMessage(`Завдання для ${task.patientName} закріплено за вами`);
+      setAlertMessage(`Завдання для ${task.patientName} закріплено за вами — ${user?.fullName ?? roleLabel}`);
       await query.refetch();
     } catch (error) {
       setAlertMessage(errorMessage(error));
@@ -101,11 +102,11 @@ export default function TasksScreen() {
 
   return (
     <View className="bg-background flex-1">
-      <AppHeader title={isNurse ? 'Черга медсестри' : 'Медичні завдання'} subtitle={isNurse ? 'Хто перший взяв — той виконує' : user?.fullName} />
-      <View className="mx-4 mt-3 overflow-hidden rounded-2xl border border-border bg-surface"><View className="flex-row items-center justify-between px-4 py-3"><View className="flex-row items-center gap-2"><View className="h-2.5 w-2.5 rounded-full bg-success" /><Text className="text-foreground text-sm font-bold">Черга в реальному часі</Text></View><View className="flex-row items-center gap-1.5"><Clock3 color={navColors.muted} size={15} /><Text className="text-muted text-[11px]">оновлення ~12 с</Text></View></View><Text className="text-muted px-4 pb-3 text-[11px]">{isNurse ? 'Нове завдання приходить зі звуком і повторним нагадуванням, поки його ніхто не взяв.' : 'Лікар задає роботу — медсестра отримує її в мобільній черзі та бачить пацієнта, час і пріоритет.'}</Text></View>
+      <AppHeader title={canWork ? `Черга ${user?.role === 'REHAB_SPECIALIST' ? 'реабілітолога' : 'медсестри'}` : 'Медичні завдання'} subtitle={canWork ? 'Хто перший взяв — за тим закріплюється' : user?.fullName} />
+      <View className="mx-4 mt-3 overflow-hidden rounded-2xl border border-border bg-surface"><View className="flex-row items-center justify-between px-4 py-3"><View className="flex-row items-center gap-2"><View className="h-2.5 w-2.5 rounded-full bg-success" /><Text className="text-foreground text-sm font-bold">Черга в реальному часі</Text></View><View className="flex-row items-center gap-1.5"><Clock3 color={navColors.muted} size={15} /><Text className="text-muted text-[11px]">оновлення ~12 с</Text></View></View><Text className="text-muted px-4 pb-3 text-[11px]">{canWork ? `Нове завдання приходить зі звуком. ${roleLabel[0].toUpperCase() + roleLabel.slice(1)} може взяти його — після цього воно закріплюється за нею.` : 'Лікар задає роботу — виконавець отримує її в мобільній черзі та бачить пацієнта, час і пріоритет.'}</Text></View>
       {alertMessage ? <Pressable onPress={() => setAlertMessage(null)} className="mx-4 mt-3 rounded-2xl border border-urgent bg-urgent-soft px-4 py-3"><View className="flex-row items-center gap-3"><View className="h-10 w-10 items-center justify-center rounded-xl bg-urgent/15"><BellRing color={navColors.urgent} size={21} /></View><View className="min-w-0 flex-1"><Text className="text-foreground text-sm font-bold">Оповіщення</Text><Text className="text-muted mt-0.5 text-xs" numberOfLines={2}>{alertMessage}</Text></View><Text className="text-urgent text-[10px] font-bold">ЗАКРИТИ</Text></View></Pressable> : null}
       <SegmentedTabs options={TAB_OPTIONS} value={tab} onChange={setTab} counts={{ new: groups.new.length, working: groups.working.length }} />
-      {query.isLoading && !hasData ? <LoadingState label="Завантаження черги…" /> : query.isError && !hasData ? <ErrorState message={errorMessage(query.error)} hint="Завдання надходять з єдиного API RehaFlow." onRetry={() => void query.refetch()} /> : <FlatList data={rows} keyExtractor={(item) => `${item.kind}-${item.id}`} contentContainerClassName="gap-3 px-4 pb-8 pt-4" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={navColors.accent} colors={[navColors.accent]} />} ListHeaderComponent={<View className="gap-2">{query.isError || !online ? <Banner tone="warning" message={query.isError ? `${errorMessage(query.error)}. Показані збережені дані` : 'Офлайн. Показані збережені дані'} /> : null}{isNurse && groups.new.length > 0 ? <View className="flex-row items-center gap-2 rounded-xl bg-accent-soft px-3 py-2"><CircleDot color={navColors.accent} size={15} /><Text className="text-accent flex-1 text-xs font-semibold">{groups.new.length} завдань чекають на вільну медсестру</Text><Siren color={navColors.urgent} size={15} /></View> : null}</View>} renderItem={({ item }) => item.kind === 'header' ? <View className="flex-row items-center gap-2 pt-1"><View className={`h-2.5 w-2.5 rounded-full ${item.id === 'urgent' ? 'bg-offline' : 'bg-state-created'}`} /><Text className="text-muted text-sm font-bold tracking-wide uppercase">{item.title}</Text></View> : <View className="gap-2"><TaskRow task={item.task} pendingSync={pendingTaskIds.has(item.task.id)} onPress={() => router.push({ pathname: '/task/[id]', params: { id: item.task.id } })} />{isNurse && isOpenTask(item.task) ? <Pressable accessibilityRole="button" disabled={claiming !== null} onPress={() => void quickClaim(item.task)} className="bg-accent min-h-12 flex-row items-center justify-center gap-2 rounded-xl px-4 py-3" style={({ pressed }) => ({ opacity: pressed || claiming ? 0.75 : 1 })}><Hand color={navColors.headerForeground} size={17} /><Text className="text-accent-foreground text-sm font-bold">{claiming === item.task.id ? 'Закріплення…' : 'ВЗЯТИ ЗАВДАННЯ'}</Text></Pressable> : null}</View>} ListEmptyComponent={<EmptyState title={tab === 'new' ? 'Нових завдань немає' : tab === 'working' ? 'Немає завдань у роботі' : 'Завершених завдань немає'} hint={tab === 'new' ? 'Нові призначення лікаря зʼявляться тут автоматично' : undefined} />} />}
+      {query.isLoading && !hasData ? <LoadingState label="Завантаження черги…" /> : query.isError && !hasData ? <ErrorState message={errorMessage(query.error)} hint="Завдання надходять з єдиного API RehaFlow." onRetry={() => void query.refetch()} /> : <FlatList data={rows} keyExtractor={(item) => `${item.kind}-${item.id}`} contentContainerClassName="gap-3 px-4 pb-8 pt-4" refreshControl={<RefreshControl refreshing={query.isRefetching} onRefresh={() => void query.refetch()} tintColor={navColors.accent} colors={[navColors.accent]} />} ListHeaderComponent={<View className="gap-2">{query.isError || !online ? <Banner tone="warning" message={query.isError ? `${errorMessage(query.error)}. Показані збережені дані` : 'Офлайн. Показані збережені дані'} /> : null}{canWork && groups.new.length > 0 ? <View className="flex-row items-center gap-2 rounded-xl bg-accent-soft px-3 py-2"><CircleDot color={navColors.accent} size={15} /><Text className="text-accent flex-1 text-xs font-semibold">{groups.new.length} завдань чекають на виконавця</Text><Siren color={navColors.urgent} size={15} /></View> : null}</View>} renderItem={({ item }) => item.kind === 'header' ? <View className="flex-row items-center gap-2 pt-1"><View className={`h-2.5 w-2.5 rounded-full ${item.id === 'urgent' ? 'bg-offline' : 'bg-state-created'}`} /><Text className="text-muted text-sm font-bold tracking-wide uppercase">{item.title}</Text></View> : <View className="gap-2"><TaskRow task={item.task} pendingSync={pendingTaskIds.has(item.task.id)} onPress={() => router.push({ pathname: '/task/[id]', params: { id: item.task.id } })} />{canWork && isOpenTask(item.task) ? <Pressable accessibilityRole="button" disabled={claiming !== null} onPress={() => void quickClaim(item.task)} className="bg-accent min-h-12 flex-row items-center justify-center gap-2 rounded-xl px-4 py-3" style={({ pressed }) => ({ opacity: pressed || claiming ? 0.75 : 1 })}><Hand color={navColors.headerForeground} size={17} /><Text className="text-accent-foreground text-sm font-bold">{claiming === item.task.id ? 'Закріплення…' : 'ВЗЯТИ ЗАВДАННЯ'}</Text></Pressable> : null}</View>} ListEmptyComponent={<EmptyState title={tab === 'new' ? 'Нових завдань немає' : tab === 'working' ? 'Немає завдань у роботі' : 'Завершених завдань немає'} hint={tab === 'new' ? 'Нові призначення лікаря зʼявляться тут автоматично' : undefined} />} />}
     </View>
   );
 }
