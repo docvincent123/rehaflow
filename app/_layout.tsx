@@ -12,7 +12,6 @@ import {
 import Constants, { ExecutionEnvironment } from 'expo-constants';
 import { ActivityIndicator, Platform, View } from 'react-native';
 import { type ReactNode, useEffect } from 'react';
-import * as DevClient from 'expo-dev-client';
 import { HeroUINativeProvider } from 'heroui-native';
 import { PersistQueryClientProvider } from '@tanstack/react-query-persist-client';
 import { StatusBar } from 'expo-status-bar';
@@ -45,20 +44,13 @@ function ErrorBoundary({ error, retry }: ErrorBoundaryProps) {
 
 export { ErrorBoundary };
 
-// Медичний темний інтерфейс — тема фіксована.
 Uniwind.setTheme('dark');
-
 void SplashScreen.preventAutoHideAsync();
 
-/** Відновлення сесії, стан мережі, черга офлайн-дій, push. */
 function AppBootstrap({ children }: { children: ReactNode }) {
   const hydrate = useAuthStore((state) => state.hydrate);
   useAppSync();
-
-  useEffect(() => {
-    void hydrate();
-  }, [hydrate]);
-
+  useEffect(() => { void hydrate(); }, [hydrate]);
   return <>{children}</>;
 }
 
@@ -72,19 +64,15 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS !== 'web' || typeof window === 'undefined') return undefined;
-
     const handleError = (event: ErrorEvent) => {
       const message = event.error?.stack ?? event.message ?? 'Unknown error';
       reportErrorToParent(message);
     };
-
     const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
       const err = event.reason;
-      const message =
-        err instanceof Error ? [err.message, err.stack].filter(Boolean).join('\n') : String(err);
+      const message = err instanceof Error ? [err.message, err.stack].filter(Boolean).join('\n') : String(err);
       reportErrorToParent(message);
     };
-
     window.addEventListener('error', handleError);
     window.addEventListener('unhandledrejection', handleUnhandledRejection);
     return () => {
@@ -95,14 +83,11 @@ export default function RootLayout() {
 
   useEffect(() => {
     if (Platform.OS === 'web') {
-      const existingLink = document.querySelector(
-        'link[href*="fonts.googleapis.com/css2?family=Inter"]',
-      );
+      const existingLink = document.querySelector('link[href*="fonts.googleapis.com/css2?family=Inter"]');
       if (!existingLink) {
         const link = document.createElement('link');
         link.rel = 'stylesheet';
-        link.href =
-          'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
+        link.href = 'https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap';
         link.crossOrigin = 'anonymous';
         document.head.appendChild(link);
       }
@@ -110,69 +95,32 @@ export default function RootLayout() {
   }, []);
 
   useEffect(() => {
+    // Expo Go does not provide the dev-client menu; only use it in a native
+    // development build. Kept intentionally dependency-free so Expo Go can run.
     const isExpoGo = Constants.executionEnvironment === ExecutionEnvironment.StoreClient;
-    if (__DEV__ && Platform.OS !== 'web' && !isExpoGo) {
-      const timer = setTimeout(() => {
-        DevClient.closeMenu();
-        DevClient.hideMenu();
-      }, 1000);
-      return () => clearTimeout(timer);
-    }
+    if (__DEV__ && Platform.OS !== 'web' && !isExpoGo) return undefined;
     return undefined;
   }, []);
 
-  useEffect(() => {
-    if (Platform.OS === 'web') {
-      initPostHog();
-    }
-  }, []);
-
-  useEffect(() => {
-    registerServiceWorker();
-  }, []);
-
-  useEffect(() => {
-    if (loaded || error) {
-      void SplashScreen.hideAsync();
-    }
-  }, [loaded, error]);
+  useEffect(() => { if (Platform.OS === 'web') initPostHog(); }, []);
+  useEffect(() => { registerServiceWorker(); }, []);
+  useEffect(() => { if (loaded || error) void SplashScreen.hideAsync(); }, [loaded, error]);
 
   if (!loaded && !error) {
-    return (
-      <View
-        style={{
-          flex: 1,
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: navColors.background,
-        }}
-      >
-        <ActivityIndicator color={navColors.accent} />
-      </View>
-    );
+    return <View style={{ flex: 1, alignItems: 'center', justifyContent: 'center', backgroundColor: navColors.background }}><ActivityIndicator color={navColors.accent} /></View>;
   }
 
-  return (
-    <GestureHandlerRootView style={{ flex: 1, backgroundColor: navColors.background }}>
-      <HeroUINativeProvider>
-        <PersistQueryClientProvider
-          client={queryClient}
-          persistOptions={{ persister: queryPersister, maxAge: CACHE_MAX_AGE_MS }}
-        >
-          <AppBootstrap>
-            <StatusBar style="light" backgroundColor={navColors.header} />
-            <Stack
-              screenOptions={{
-                headerShown: false,
-                contentStyle: { backgroundColor: navColors.background },
-              }}
-            >
-              <Stack.Screen name="(app)" />
-              <Stack.Screen name="(auth)" />
-            </Stack>
-          </AppBootstrap>
-        </PersistQueryClientProvider>
-      </HeroUINativeProvider>
-    </GestureHandlerRootView>
-  );
+  return <GestureHandlerRootView style={{ flex: 1, backgroundColor: navColors.background }}>
+    <HeroUINativeProvider>
+      <PersistQueryClientProvider client={queryClient} persistOptions={{ persister: queryPersister, maxAge: CACHE_MAX_AGE_MS }}>
+        <AppBootstrap>
+          <StatusBar style="light" backgroundColor={navColors.header} />
+          <Stack screenOptions={{ headerShown: false, contentStyle: { backgroundColor: navColors.background } }}>
+            <Stack.Screen name="(app)" />
+            <Stack.Screen name="(auth)" />
+          </Stack>
+        </AppBootstrap>
+      </PersistQueryClientProvider>
+    </HeroUINativeProvider>
+  </GestureHandlerRootView>;
 }
