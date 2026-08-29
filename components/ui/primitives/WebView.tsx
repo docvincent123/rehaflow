@@ -1,5 +1,6 @@
-import { WebView as RNWebView } from 'react-native-webview';
+import { View } from 'react-native';
 import { withUniwind } from 'uniwind';
 
-// WebView needs className translated to style for dimensions and borders.
-export const WebView = withUniwind(RNWebView);
+// Lightweight placeholder used when the optional native WebView module is not installed.
+// Keeping this primitive dependency-free allows the Expo Go development workflow to run.
+export const WebView = withUniwind(View);
