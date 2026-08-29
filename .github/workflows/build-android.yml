@@ -24,6 +24,7 @@ jobs:
         uses: actions/setup-node@v5
         with:
           node-version: 24
+          cache: ''
 
       - name: Install dependencies
         run: npm install --no-audit --no-fund
@@ -31,12 +32,20 @@ jobs:
       - name: Install Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Generate native Android project
-        run: npx expo prebuild --platform android --non-interactive
+      - name: Prebuild Android
+        env:
+          CI: 1
+        run: npx expo prebuild --platform android --clean
 
-      - name: Build release APK with Gradle
+      - name: Verify Gradle wrapper
         working-directory: android
-        run: ./gradlew assembleRelease --no-daemon --stacktrace
+        run: chmod +x gradlew
+
+      - name: Build release APK
+        working-directory: android
+        env:
+          GRADLE_OPTS: -Dorg.gradle.daemon=false -Dorg.gradle.jvmargs=-Xmx4g -XX:+HeapDumpOnOutOfMemoryError
+        run: ./gradlew assembleRelease --stacktrace --no-daemon
 
       - name: Prepare APK artifact
         shell: bash
@@ -51,9 +60,10 @@ jobs:
           cp "$APK" artifacts/RehaFlow.apk
           ls -lh artifacts/RehaFlow.apk
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: RehaFlow-Android-APK
           path: artifacts/RehaFlow.apk
-          retention-days: 14
+          if-no-files-found: error
+          retention-days: 30
