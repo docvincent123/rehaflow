@@ -2,16 +2,16 @@
   "expo": {
     "name": "RehaFlow",
     "slug": "rehaflow",
-    "version": "1.0.1",
+    "version": "1.6.21",
     "orientation": "portrait",
     "userInterfaceStyle": "dark",
     "scheme": "rehaflow",
     "newArchEnabled": true,
-    "runtimeVersion": "1.0.1",
+    "runtimeVersion": "1.6.21",
     "assetBundlePatterns": ["**/*"],
     "android": {
       "package": "com.rehaflow.mobile",
-      "versionCode": 101,
+      "versionCode": 1621,
       "permissions": ["INTERNET", "ACCESS_NETWORK_STATE", "POST_NOTIFICATIONS", "VIBRATE"]
     },
     "ios": {
