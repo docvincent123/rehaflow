@@ -6,6 +6,7 @@
     "android": "expo run:android",
     "ios": "expo run:ios",
     "expo-check": "expo install --check --npm",
+    "typecheck": "tsc --noEmit",
     "export:web": "expo export -p web",
     "build:pwa": "expo export -p web && workbox generateSW workbox-config.js",
     "lint": "oxlint --type-aware --type-check",
