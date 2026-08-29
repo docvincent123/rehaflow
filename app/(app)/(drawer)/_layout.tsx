@@ -10,16 +10,17 @@ import { configureTaskAlerts, syncTaskSummary } from '@/lib/notifications/taskAl
 export default function DrawerLayout() {
   const user = useCurrentUser();
   const tasksQuery = useTasksQuery();
+  const canWorkTasks = user?.role === 'NURSE' || user?.role === 'REHAB_SPECIALIST';
 
   useEffect(() => {
-    if (user?.role !== 'NURSE') return;
+    if (!canWorkTasks) return;
     void configureTaskAlerts();
-  }, [user?.role]);
+  }, [canWorkTasks]);
 
   useEffect(() => {
-    if (user?.role !== 'NURSE') return;
+    if (!canWorkTasks) return;
     void syncTaskSummary(tasksQuery.data ?? []);
-  }, [user?.role, tasksQuery.data]);
+  }, [canWorkTasks, tasksQuery.data]);
 
   return (
     <Drawer
