@@ -10,7 +10,6 @@
     "runtimeVersion": "1.6.21",
     "assetBundlePatterns": ["**/*"],
     "splash": {
-      "image": "./assets/icon.svg",
       "resizeMode": "contain",
       "backgroundColor": "#10141E"
     },
